@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
@@ -20,6 +21,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import-x": "^4.16.1",
     "globals": "^16.5.0",
+    "nodemon": "^3.1.11",
     "prettier": "3.6.2"
   },
   "dependencies": {

@@ -14,18 +14,18 @@ import {
   SlashCommandBuilder,
   PermissionFlagsBits,
   InteractionContextType,
+  MessageFlags,
 } from 'discord.js';
 
-import { buildTradeButton } from '../utils/components/buttons.js';
-import { buildTradeEmbed } from '../utils/components/embeds.js';
+import { buildTradeContainer } from '../utils/components/containers.js';
 
 /**
  * Slash command data definition
  * Configures the /create_trade command with admin-only permissions
  */
 export const data = new SlashCommandBuilder()
-  .setName('create_trade')
-  .setDescription(`Send 'Create Trade' embed`)
+  .setName('create_trade_setup')
+  .setDescription(`Post 'Create Trade' container`)
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .setContexts([InteractionContextType.Guild]);
 
@@ -45,7 +45,7 @@ export const data = new SlashCommandBuilder()
  */
 export async function execute(interaction) {
   await interaction.reply({
-    embeds: [buildTradeEmbed()],
-    components: [buildTradeButton()],
+    flags: MessageFlags.IsComponentsV2,
+    components: [buildTradeContainer()],
   });
 }
