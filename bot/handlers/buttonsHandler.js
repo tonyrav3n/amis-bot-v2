@@ -34,7 +34,10 @@ import {
 } from 'discord.js';
 
 import { env } from '../config/env.js';
-import { buildConfirmTradeDetailsContainer } from '../utils/components/containers.js';
+import {
+  buildConfirmTradeDetailsContainer,
+  buildConnectWalletContainer,
+} from '../utils/components/containers.js';
 import { buildTradeDetailsModal } from '../utils/components/modals.js';
 import { logger } from '../utils/logger.js';
 
@@ -217,45 +220,45 @@ async function handleCreateTradeButton(interaction) {
   await interaction.showModal(buildTradeDetailsModal());
 }
 
+/**
+ * Handle "Create Thread" button with comprehensive thread management
+ *
+ * Creates a private Discord thread for trade negotiations between buyer and seller.
+ * Implements a multi-step process with loading states, validation, and error recovery.
+ *
+ * Thread Creation Process:
+ * 1. Show loading state to user
+ * 2. Validate bot permissions for thread management
+ * 3. Fetch buyer and seller member objects
+ * 4. Generate unique thread title with timestamps
+ * 5. Create private thread with auto-archive settings
+ * 6. Add participants to thread
+ * 7. Send welcome message
+ * 8. Update UI with success/failure status
+ *
+ * Security & Validation:
+ * - Validates bot has ManageThreads and SendMessagesInThreads permissions
+ * - Ensures both buyer and seller exist in guild
+ * - Creates private threads that cannot be invited to
+ * - Generates unique thread titles to prevent conflicts
+ *
+ * Error Handling:
+ * - Permission errors with specific guidance
+ * - Member fetch failures with user feedback
+ * - Thread creation failures with rollback
+ * - Comprehensive error logging for debugging
+ *
+ * @async
+ * @function handleCreateThreadButton
+ * @param {ButtonInteraction} interaction - The confirm button interaction
+ * @param {string} buyerId - Discord user ID of buyer
+ * @param {string} sellerId - Discord user ID of seller (different from buyer)
+ * @returns {Promise<void>} Resolves when thread creation completes
+ * @private
+ *
+ * @throws {Error} When thread creation or member operations fail
+ */
 async function handleCreateThreadButton(interaction, buyerId, sellerId) {
-  /**
-   * Handle "Create Thread" button with comprehensive thread management
-   *
-   * Creates a private Discord thread for trade negotiations between buyer and seller.
-   * Implements a multi-step process with loading states, validation, and error recovery.
-   *
-   * Thread Creation Process:
-   * 1. Show loading state to user
-   * 2. Validate bot permissions for thread management
-   * 3. Fetch buyer and seller member objects
-   * 4. Generate unique thread title with timestamps
-   * 5. Create private thread with auto-archive settings
-   * 6. Add participants to thread
-   * 7. Send welcome message
-   * 8. Update UI with success/failure status
-   *
-   * Security & Validation:
-   * - Validates bot has ManageThreads and SendMessagesInThreads permissions
-   * - Ensures both buyer and seller exist in guild
-   * - Creates private threads that cannot be invited to
-   * - Generates unique thread titles to prevent conflicts
-   *
-   * Error Handling:
-   * - Permission errors with specific guidance
-   * - Member fetch failures with user feedback
-   * - Thread creation failures with rollback
-   * - Comprehensive error logging for debugging
-   *
-   * @async
-   * @function handleCreateThreadButton
-   * @param {ButtonInteraction} interaction - The confirm button interaction
-   * @param {string} buyerId - Discord user ID of buyer
-   * @param {string} sellerId - Discord user ID of seller (different from buyer)
-   * @returns {Promise<void>} Resolves when thread creation completes
-   * @private
-   *
-   * @throws {Error} When thread creation or member operations fail
-   */
   logger.info('Create thread button clicked', {
     buyerId,
     sellerId,
@@ -314,6 +317,8 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
       rawTitle.length > MAX_THREAD_NAME_LENGTH
         ? rawTitle.substring(0, MAX_THREAD_NAME_LENGTH - 1)
         : rawTitle;
+    // Use a numeric-only trade id for UI and containers (e.g. 6075-5296-1763670387)
+    const tradeId = `${buyerLast4}-${sellerLast4}-${timestamp}`;
 
     logger.info('Thread title generated', {
       threadTitle,
@@ -329,18 +334,19 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
       autoArchiveDuration: THREAD_ARCHIVE_DURATION,
       invitable: false,
     });
-    logger.info('✅ Thread created', { threadId: thread.id, url: thread.url });
+    logger.info('Thread created', { threadId: thread.id, url: thread.url });
 
     // Add participants (bot auto-added as creator)
     await thread.members.add(buyerId);
     await thread.members.add(sellerId);
-    logger.info('✅ Members added to thread');
+    logger.info('Members added to thread');
 
     // Send welcome message
-    await thread.send(
-      `Welcome <@${buyerId}> and <@${sellerId}>! This is your private trade channel.`,
-    );
-    logger.info('📤 Welcome message sent');
+    await thread.send({
+      flags: MessageFlags.IsComponentsV2,
+      components: [buildConnectWalletContainer(tradeId, buyerId, sellerId)],
+    });
+    logger.info('Welcome message sent');
 
     const successText = new TextDisplayBuilder().setContent(
       `**Success!** Your private trade channel has been created: ${thread.toString()}`,

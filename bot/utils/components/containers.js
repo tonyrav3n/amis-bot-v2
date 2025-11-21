@@ -39,6 +39,7 @@ import {
 import { COLORS, ASSETS } from '../../config/theme.js';
 
 import {
+  buildConnectWalletButton,
   buildCreateThreadButtonsRow,
   buildTradeButton,
   buildVerifyButton,
@@ -367,4 +368,31 @@ export function buildConfirmTradeDetailsContainer(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     )
     .addActionRowComponents(buildCreateThreadButtonsRow(buyerId, sellerId));
+}
+
+export function buildConnectWalletContainer(tradeId, buyerId, sellerId) {
+  const url = `https://www.google.com`;
+  const container = new ContainerBuilder()
+    .setAccentColor(COLORS.VERIFIED_GREEN)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        '**Final Agreement & Consent Required**\n' +
+          'Please review the terms one last time and click your respective button below to finalize the agreement. This action cannot be undone.',
+      ),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `Trade ID: \`${tradeId}\`\n` +
+          `Buyer: <@${buyerId}>, Seller: <@${sellerId}>`,
+      ),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addActionRowComponents(buildConnectWalletButton(url));
+
+  return container;
 }

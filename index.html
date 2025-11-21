@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amis - Connect Wallet</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        blob: "blob 7s infinite",
+                    },
+                    keyframes: {
+                        blob: {
+                            "0%": { transform: "translate(0px, 0px) scale(1)" },
+                            "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+                            "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+                            "100%": { transform: "translate(0px, 0px) scale(1)" },
+                        },
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        /* Custom scrollbar hide */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none; 
+            scrollbar-width: none; 
+        }
+        
+        /* Loader animation */
+        .loader {
+            border: 3px solid rgba(139, 92, 246, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid #8b5cf6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white font-sans selection:bg-violet-500 selection:text-white overflow-x-hidden">
+
+    <div class="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-violet-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+        <div class="absolute top-[20%] right-[-10%] w-96 h-96 bg-indigo-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style="animation-delay: 2s"></div>
+        <div class="absolute bottom-[-20%] left-[20%] w-96 h-96 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" style="animation-delay: 4s"></div>
+    </div>
+
+    <nav class="flex items-center justify-between px-6 py-6 max-w-7xl mx-auto">
+        <div class="flex items-center gap-3 cursor-pointer">
+            <div class="w-10 h-10 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-500/20">
+                <span class="font-bold text-lg text-white">A</span>
+            </div>
+            <span class="text-2xl font-bold tracking-tight">Amis</span>
+        </div>
+        <button class="hidden md:block text-sm text-slate-400 hover:text-white transition-colors font-medium">
+            Need help?
+        </button>
+    </nav>
+
+    <main class="flex flex-col items-center justify-center min-h-[80vh] px-4 pb-10">
+        
+        <div class="text-center mb-10 max-w-lg">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
+                Welcome to Amis
+            </h1>
+            <p class="text-slate-400 text-lg leading-relaxed">
+                Connect your wallet to join the community, trade assets, and explore the ecosystem.
+            </p>
+        </div>
+
+        <div class="w-full max-w-md bg-slate-800/40 backdrop-blur-xl border border-slate-700/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+            
+            <div class="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold text-white">Connect Wallet</h2>
+                <div class="group relative cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 hover:text-violet-400 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                </div>
+            </div>
+
+            <div class="space-y-3" id="wallet-list">
+                <button onclick="connectWallet(this, 'MetaMask')" class="wallet-btn w-full flex items-center justify-between p-4 rounded-xl border border-slate-700/50 bg-slate-900/40 hover:bg-slate-800 hover:border-violet-500/50 transition-all duration-200 group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-xl shadow-inner">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask" class="w-6 h-6">
+                        </div>
+                        <div class="text-left">
+                            <div class="font-medium text-white group-hover:text-violet-300 transition-colors">MetaMask</div>
+                            <span class="text-[10px] uppercase tracking-wider font-bold text-violet-400 bg-violet-400/10 px-2 py-0.5 rounded-full">Popular</span>
+                        </div>
+                    </div>
+                    <div class="status-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </button>
+
+                <button onclick="connectWallet(this, 'Coinbase')" class="wallet-btn w-full flex items-center justify-between p-4 rounded-xl border border-slate-700/50 bg-slate-900/40 hover:bg-slate-800 hover:border-violet-500/50 transition-all duration-200 group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-xl shadow-inner">
+                            <span class="text-blue-500 text-2xl">●</span>
+                        </div>
+                        <div class="text-left">
+                            <div class="font-medium text-white group-hover:text-violet-300 transition-colors">Coinbase Wallet</div>
+                        </div>
+                    </div>
+                    <div class="status-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </button>
+
+                <button onclick="connectWallet(this, 'WalletConnect')" class="wallet-btn w-full flex items-center justify-between p-4 rounded-xl border border-slate-700/50 bg-slate-900/40 hover:bg-slate-800 hover:border-violet-500/50 transition-all duration-200 group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-xl shadow-inner">
+                            <svg viewBox="0 0 24 24" class="w-6 h-6 fill-blue-400"><path d="M10 14a3.5 3.5 0 0 0 4 0l4-4a3.5 3.5 0 0 0-5-5l-2 2-2-2a3.5 3.5 0 0 0-5 5l6 4z"/></svg>
+                        </div>
+                        <div class="text-left">
+                            <div class="font-medium text-white group-hover:text-violet-300 transition-colors">WalletConnect</div>
+                        </div>
+                    </div>
+                    <div class="status-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </button>
+
+                 <button onclick="connectWallet(this, 'Phantom')" class="wallet-btn w-full flex items-center justify-between p-4 rounded-xl border border-slate-700/50 bg-slate-900/40 hover:bg-slate-800 hover:border-violet-500/50 transition-all duration-200 group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-xl shadow-inner">
+                            <span class="text-purple-400 text-xl">👻</span>
+                        </div>
+                        <div class="text-left">
+                            <div class="font-medium text-white group-hover:text-violet-300 transition-colors">Phantom</div>
+                        </div>
+                    </div>
+                    <div class="status-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </div>
+                </button>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-slate-700/50 text-center">
+                <p class="text-xs text-slate-500 flex items-center justify-center gap-1 mb-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                    Secure Connection
+                </p>
+                <p class="text-xs text-slate-500">
+                    By connecting, you agree to our <a href="#" class="text-violet-400 hover:underline">Terms of Service</a>
+                </p>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center animate-pulse">
+            <p class="text-sm text-slate-400">
+                New to crypto? 
+                <a href="#" class="text-white font-medium hover:text-violet-400 transition-colors">Learn how to create a wallet</a>
+            </p>
+        </div>
+
+    </main>
+
+    <script>
+        function connectWallet(element, walletName) {
+            // Reset all buttons first
+            const allBtns = document.querySelectorAll('.wallet-btn');
+            allBtns.forEach(btn => {
+                btn.classList.remove('border-violet-500', 'bg-violet-500/10');
+                btn.classList.add('border-slate-700/50', 'bg-slate-900/40');
+                // Restore arrow
+                const iconContainer = btn.querySelector('.status-icon');
+                iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-600 group-hover:text-white group-hover:translate-x-1 transition-transform"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`;
+            });
+
+            // Set active state on clicked button
+            element.classList.remove('border-slate-700/50', 'bg-slate-900/40');
+            element.classList.add('border-violet-500', 'bg-violet-500/10');
+
+            // Show loader
+            const iconContainer = element.querySelector('.status-icon');
+            iconContainer.innerHTML = `<div class="loader"></div>`;
+
+            // Simulate delay
+            setTimeout(() => {
+                alert(`Amis: Connected to ${walletName} successfully!`);
+                // Reset after alert
+                iconContainer.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-400"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+            }, 1500);
+        }
+    </script>
+</body>
+</html>

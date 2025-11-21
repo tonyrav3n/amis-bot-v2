@@ -67,7 +67,8 @@ export function buildVerifyButton() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('verify_assign_role_btn')
-      .setLabel('✅ Verify')
+      .setLabel('Verify')
+      .setEmoji('✅')
       .setStyle(ButtonStyle.Success),
   );
 }
@@ -118,21 +119,33 @@ export function buildTradeButton() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('create_trade_flow_btn')
-      .setLabel('🛡️ Start a New Trade')
+      .setLabel('Start a New Trade')
+      .setEmoji('🛡️')
       .setStyle(ButtonStyle.Success),
   );
 }
 
 export function buildCreateThreadButtonsRow(buyerId, sellerId) {
-  logger.debug('🧵 Building create thread buttons', { buyerId, sellerId });
+  logger.debug('Building create thread buttons', { buyerId, sellerId });
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`create_thread:${buyerId}:${sellerId}`)
-      .setLabel('✅ Confirm Trade')
+      .setLabel('Confirm Trade')
+      .setEmoji('✅')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(`cancel_trade:${buyerId}:${sellerId}`)
+      .setCustomId(`cancel_trade`)
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Danger),
+  );
+}
+
+export function buildConnectWalletButton(url) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      // .setCustomId(`connect_wallet`)
+      .setLabel('Connect Wallet')
+      .setStyle(ButtonStyle.Link)
+      .setURL(url),
   );
 }
