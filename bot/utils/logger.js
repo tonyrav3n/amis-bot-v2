@@ -1,104 +1,47 @@
 import { env } from '../config/env.js';
 
 /**
- * Logger utility with debug mode toggle
- *
- * Provides centralized logging with environment-based debug mode control.
- * Debug logs only appear when DEBUG_MODE=true in .env file.
- *
- * @example
- * import { logger } from './utils/logger.js';
- *
- * // Always visible logs
- * logger.info('Server started');
- * logger.success('Operation completed');
- * logger.warn('Warning message');
- * logger.error('Error occurred', error);
- *
- * // Debug-only logs (only when DEBUG_MODE=true)
- * logger.debug('Debug info:', data);
- * logger.button('button_id', userId, { extra: 'data' });
+ * Logger utility with debug mode toggle.
+ * Debug logs only appear when DEBUG_MODE=true.
  */
 class Logger {
-  /**
-   * Initialize logger with debug mode from environment
-   * @private
-   */
+  /** Initialize logger with debug mode from environment. */
   constructor() {
     this.debugMode = env.DEBUG_MODE || false;
   }
 
-  /**
-   * Log debug messages (only shown when DEBUG_MODE=true)
-   * Use for detailed debugging information during development
-   *
-   * @param {...any} args - Any number of arguments to log
-   * @example
-   * logger.debug('Processing data:', { userId, status });
-   */
+  /** Log debug messages (only shown when DEBUG_MODE=true). */
   debug(...args) {
     if (this.debugMode) {
       console.log('🔍 [DEBUG]', ...args);
     }
   }
 
-  /**
-   * Log informational messages (always shown)
-   * Use for general operational information
-   *
-   * @param {...any} args - Any number of arguments to log
-   * @example
-   * logger.info('Registering 3 commands...');
-   */
+  /** Log informational messages (always shown). */
   info(...args) {
     console.log('ℹ️  [INFO]', ...args);
   }
 
-  /**
-   * Log success messages (always shown)
-   * Use for successful operations and completions
-   *
-   * @param {...any} args - Any number of arguments to log
-   * @example
-   * logger.success('User registered successfully');
-   */
+  /** Log success messages (always shown). */
   success(...args) {
     console.log('✅ [SUCCESS]', ...args);
   }
 
-  /**
-   * Log warning messages (always shown)
-   * Use for non-critical issues that should be noted
-   *
-   * @param {...any} args - Any number of arguments to log
-   * @example
-   * logger.warn('Unknown command:', commandName);
-   */
+  /** Log warning messages (always shown). */
   warn(...args) {
     console.warn('⚠️  [WARN]', ...args);
   }
 
-  /**
-   * Log error messages (always shown)
-   * Use for errors and exceptions that need attention
-   *
-   * @param {...any} args - Any number of arguments to log
-   * @example
-   * logger.error('Database connection failed:', error);
-   */
+  /** Log error messages (always shown). */
   error(...args) {
     console.error('❌ [ERROR]', ...args);
   }
 
   /**
-   * Log Discord interaction details (debug only)
-   * Use for generic interaction logging
-   *
-   * @param {string} type - Type of interaction (button, select, modal, etc.)
-   * @param {string} customId - The custom ID of the interaction component
-   * @param {Object} [details={}] - Additional details about the interaction
-   * @example
-   * logger.interaction('button', 'create_trade_btn', { userId: '123' });
+   * Log Discord interaction details (debug only).
+   * @param {string} type - Type of interaction
+   * @param {string} customId - The custom ID
+   * @param {Object} [details={}] - Additional details
    */
   interaction(type, customId, details = {}) {
     if (this.debugMode) {
@@ -111,14 +54,10 @@ class Logger {
   }
 
   /**
-   * Log button interaction (debug only)
-   * Use when a user clicks a button component
-   *
+   * Log button interaction (debug only).
    * @param {string} customId - The custom ID of the button
-   * @param {string} userId - The Discord user ID who clicked
-   * @param {Object} [details={}] - Additional context about the click
-   * @example
-   * logger.button('role_btn:buyer', interaction.user.id, { role: 'buyer' });
+   * @param {string} userId - The Discord user ID
+   * @param {Object} [details={}] - Additional context
    */
   button(customId, userId, details = {}) {
     if (this.debugMode) {
@@ -131,15 +70,11 @@ class Logger {
   }
 
   /**
-   * Log select menu interaction (debug only)
-   * Use when a user makes a selection from a dropdown
-   *
+   * Log select menu interaction (debug only).
    * @param {string} customId - The custom ID of the select menu
-   * @param {string} userId - The Discord user ID who selected
+   * @param {string} userId - The Discord user ID
    * @param {string[]} values - Array of selected values
-   * @param {Object} [details={}] - Additional context about the selection
-   * @example
-   * logger.select('select_counterparty_slt:buyer', userId, ['123'], { action: 'select' });
+   * @param {Object} [details={}] - Additional context
    */
   select(customId, userId, values, details = {}) {
     if (this.debugMode) {
@@ -153,14 +88,10 @@ class Logger {
   }
 
   /**
-   * Log modal submission (debug only)
-   * Use when a user submits a modal form
-   *
+   * Log modal submission (debug only).
    * @param {string} customId - The custom ID of the modal
-   * @param {string} userId - The Discord user ID who submitted
-   * @param {Object} [fields={}] - The field values from the modal
-   * @example
-   * logger.modal('trade_details_mdl', userId, { item: 'Knife', price: '50' });
+   * @param {string} userId - The Discord user ID
+   * @param {Object} [fields={}] - The field values
    */
   modal(customId, userId, fields = {}) {
     if (this.debugMode) {
@@ -173,14 +104,10 @@ class Logger {
   }
 
   /**
-   * Log slash command execution (debug only)
-   * Use when a user executes a slash command
-   *
-   * @param {string} commandName - The name of the command executed
-   * @param {string} userId - The Discord user ID who executed the command
-   * @param {Object} [options={}] - Command options/parameters
-   * @example
-   * logger.command('create_trade', interaction.user.id, { channelId: '123' });
+   * Log slash command execution (debug only).
+   * @param {string} commandName - The name of the command
+   * @param {string} userId - The Discord user ID
+   * @param {Object} [options={}] - Command options
    */
   command(commandName, userId, options = {}) {
     if (this.debugMode) {
@@ -193,28 +120,13 @@ class Logger {
   }
 
   /**
-   * Check if debug mode is currently enabled
-   * Useful for conditionally executing expensive debug operations
-   *
-   * @returns {boolean} True if DEBUG_MODE=true in environment
-   * @example
-   * if (logger.isDebugMode()) {
-   *   const expensiveData = generateReport();
-   *   logger.debug('Report:', expensiveData);
-   * }
+   * Check if debug mode is currently enabled.
+   * @returns {boolean} True if DEBUG_MODE=true
    */
   isDebugMode() {
     return this.debugMode;
   }
 }
 
-/**
- * Singleton logger instance
- * Import and use this throughout the application for consistent logging
- *
- * @type {Logger}
- * @example
- * import { logger } from './utils/logger.js';
- * logger.info('Application started');
- */
+/** Singleton logger instance. */
 export const logger = new Logger();

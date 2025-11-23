@@ -12,44 +12,7 @@ import {
   buildRoleSelectionSelect,
 } from './selects.js';
 
-/**
- * Build a trade details modal for comprehensive trade information collection
- *
- * Creates a modal form with multiple input fields and selection menus
- * for collecting complete trade information using Components V2.
- *
- * Modal Structure:
- * - Item Input (required): Short text field for trade item description
- * - Price Input (required): Short text field for USD amount
- * - Counterparty Selection (required): User select menu for trading partner
- * - Role Selection (required): String select menu for buyer/seller positioning
- * - Description Input (optional): Paragraph text for additional trade details
- *
- * Input Validation:
- * - Item: Required, up to 500 characters
- * - Price: Required, numeric USD amount with minimum $5.00
- * - Counterparty: Required, must be different user
- * - Role: Required, buyer or seller selection
- * - Description: Optional, up to 1000 characters
- *
- * Integration:
- * - Routes to handleTradeDetailsModal() in modalsHandler.js
- * - Validates all inputs before trade creation
- * - Creates trade confirmation interface
- * - Supports thread creation workflow
- *
- * @function buildTradeDetailsModal
- * @returns {ModalBuilder} Configured modal ready to display
- *
- * @example
- * // Show trade details modal
- * const modal = buildTradeDetailsModal();
- * await interaction.showModal(modal);
- *
- * @example
- * // In trade creation flow
- * await interaction.showModal(buildTradeDetailsModal());
- */
+/** Build a trade details modal for collecting trade information. */
 export function buildTradeDetailsModal() {
   logger.debug('Building trade details modal');
 

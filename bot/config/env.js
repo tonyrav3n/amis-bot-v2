@@ -71,7 +71,7 @@ export const env = {
 export function validateRequiredEnvVars() {
   // Check all env properties for missing values
   const missing = Object.entries(env)
-    .filter(([_, value]) => !value)
+    .filter(([_, value]) => typeof value !== 'boolean' && !value)
     .map(([key]) => key);
 
   // Throw error with list of missing variables

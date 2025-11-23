@@ -1,31 +1,3 @@
-/**
- * Container Component Builder - Discord Components V2 Creation System
- *
- * Provides functions to create modern Discord container components with
- * consistent styling, theming, and integration with the bot's interaction
- * handlers. All containers follow the Components V2 architecture for enhanced
- * Discord interfaces with better accessibility and mobile support.
- *
- * Features:
- * - Verification containers for user onboarding
- * - Trade containers for escrow management
- * - Message containers with embed-like styling
- * - Confirmation containers for trade details
- * - Consistent theming and branding
- * - Mobile-responsive design patterns
- *
- * Benefits of Components V2:
- * - Better mobile support and accessibility
- * - More flexible layout options
- * - Enhanced user experience
- * - Future-proof Discord interface standards
- *
- * @module utils/components/containers
- * @author amis Bot Team
- * @version 2.0.0
- * @since 2.0.0
- */
-
 import {
   ContainerBuilder,
   MediaGalleryBuilder,
@@ -34,6 +6,9 @@ import {
   SeparatorSpacingSize,
   TextDisplayBuilder,
   ThumbnailBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } from 'discord.js';
 
 import { COLORS, ASSETS } from '../../config/theme.js';
@@ -45,40 +20,7 @@ import {
   buildVerifyButton,
 } from './buttons.js';
 
-/**
- * Build a verification container for new user onboarding
- *
- * Creates a complete verification station with welcome message, instructions,
- * and verification button. Uses Components V2 for modern Discord interface
- * with better accessibility and mobile support.
- *
- * Container Structure:
- * - Accent color: VERIFIED_GREEN for brand consistency
- * - Header text: Bold welcome message
- * - Section with instructions and logo thumbnail
- * - Action row with verification button
- *
- * Integration:
- * - Designed for /verify_setup command usage
- * - Pairs with buildVerifyButton() for complete functionality
- * - Handles role assignment through button interaction
- *
- * @function buildVerifyContainer
- * @returns {ContainerBuilder} Complete verification container with button
- *
- * @example
- * // In verification setup command
- * await interaction.reply({
- *   components: [buildVerifyContainer()]
- * });
- *
- * @example
- * // For persistent verification station
- * await channel.send({
- *   content: "New here?",
- *   components: [buildVerifyContainer()]
- * });
- */
+/** Build a verification container for new user onboarding. */
 export function buildVerifyContainer() {
   return new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
@@ -100,48 +42,14 @@ export function buildVerifyContainer() {
 }
 
 /**
- * Build a message container for styled content display (Components V2 replacement for embeds)
- *
- * Creates a modern container with text content, optional header, and branding elements.
- * Designed as a Components V2 replacement for traditional embeds with enhanced styling
- * and better mobile support.
- *
- * Container Features:
- * - Configurable accent color (red, green, blue, yellow)
- * - Optional header with bold formatting
- * - Main content area with flexible text
- * - Optional logo thumbnail and banner image
- * - Footer with amis. branding
- *
- * Styling Options:
- * - Colors: ALERT_RED, VERIFIED_GREEN, BLURPLE, or custom yellow
- * - Header: Optional bold header text
- * - Thumbnail: Optional logo display
- * - Banner: Optional full-width image
- *
- * @function buildSayEmbedContainer
+ * Build a message container for styled content display.
  * @param {string} msgContent - Main message content
- * @param {Object} options - Styling and content options
- * @param {string} [options.header] - Optional header text (bold)
- * @param {string} [options.colorKey='green'] - Color theme ('red', 'green', 'blue', 'yellow')
+ * @param {Object} options - Styling options
+ * @param {string} [options.header] - Optional header text
+ * @param {string} [options.colorKey='green'] - Color theme
  * @param {boolean} [options.includeThumb=false] - Include logo thumbnail
  * @param {boolean} [options.includeBanner=false] - Include banner image
- * @returns {ContainerBuilder} Styled container for message display
- *
- * @example
- * // Basic message
- * const container = buildSayEmbedContainer("Welcome to the server!");
- * await channel.send({ components: [container] });
- *
- * @example
- * // Full-featured message
- * const container = buildSayEmbedContainer("Server Announcement", {
- *   header: "Important Notice",
- *   colorKey: 'red',
- *   includeThumb: true,
- *   includeBanner: true
- * });
- * await channel.send({ components: [container] });
+ * @returns {ContainerBuilder} Styled container
  */
 export function buildSayContainerContainer(msgContent, options = {}) {
   const {
@@ -199,6 +107,7 @@ export function buildSayContainerContainer(msgContent, options = {}) {
   return builder;
 }
 
+/** Build a DM container for styled content display. */
 export function buildSayDmContainer(
   msgContent,
   msgTitle,
@@ -235,40 +144,7 @@ export function buildSayDmContainer(
   return builder;
 }
 
-/**
- * Build a trade creation container for promoting trade services
- *
- * Creates an inviting trade station with header, description, and action button.
- * Designed to encourage users to start secure trades through the bot's escrow system.
- *
- * Container Structure:
- * - Accent color: VERIFIED_GREEN for trust and security
- * - Header: Bold "Start a Secure Trade" message
- * - Description: Detailed explanation of trade benefits
- * - Logo thumbnail for brand consistency
- * - Action row with trade creation button
- *
- * Use Cases:
- * - Persistent trade station in trading channels
- * - Response to /trade_setup commands
- * - General trade promotion in server
- *
- * @function buildTradeContainer
- * @returns {ContainerBuilder} Complete trade promotion container
- *
- * @example
- * // Create trade station
- * await channel.send({
- *   components: [buildTradeContainer()]
- * });
- *
- * @example
- * // In trade setup command
- * await interaction.reply({
- *   content: "Trade Services",
- *   components: [buildTradeContainer()]
- * });
- */
+/** Build a trade creation container for promoting trade services. */
 export function buildTradeContainer() {
   return new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
@@ -289,52 +165,14 @@ export function buildTradeContainer() {
 }
 
 /**
- * Build a trade confirmation container for final review before thread creation
- *
- * Creates a comprehensive summary of trade details with confirmation buttons.
- * Allows users to review all trade information before committing to thread creation.
- * This is the final step in the trade creation flow.
- *
- * Container Features:
- * - Accent color: VERIFIED_GREEN for security and trust
- * - Header: "Let's Double-Check!" with reassurance text
- * - Large separator for visual organization
- * - Trade details section with buyer, seller, item, price, and fees
- * - Second separator before action buttons
- * - Button row with confirm and cancel options
- *
- * Trade Information Displayed:
- * - Buyer: Discord mention of buyer user
- * - Seller: Discord mention of seller user
- * - Item: Description of item/service being traded
- * - Price: Formatted USD amount
- * - Additional Details: User-provided trade specifics
- * - Fees: Applied fees (currently placeholder)
- *
- * Security Features:
- * - Clear identification of all parties
- * - Final confirmation step prevents mistakes
- * - Cancel option allows safe exit
- * - Private thread creation only after confirmation
- *
- * @function buildConfirmTradeDetailsContainer
+ * Build a trade confirmation container for final review.
  * @param {string} buyerId - Discord user ID of the buyer
  * @param {string} sellerId - Discord user ID of the seller
  * @param {string} item - Description of item/service being traded
- * @param {string} price - Formatted price (e.g., "50.00")
- * @param {string} details - Additional trade details from user
+ * @param {string} price - Formatted price
+ * @param {string} details - Additional trade details
  * @param {string} feesText - Text describing applied fees
- * @returns {ContainerBuilder} Complete trade confirmation interface
- *
- * @example
- * // After modal submission
- * const container = buildConfirmTradeDetailsContainer(
- *   '123456789', '987654321', 'Web Development Services', '500.00',
- *   'Create landing page with React', 'No fees applied'
- * );
- * await interaction.reply({
- *   components: [container]
- * });
+ * @returns {ContainerBuilder} Trade confirmation container
  */
 export function buildConfirmTradeDetailsContainer(
   buyerId,
@@ -344,9 +182,8 @@ export function buildConfirmTradeDetailsContainer(
   details,
   feesText,
 ) {
-  return new ContainerBuilder()
+  const container = new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
-
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(`**Let's Double-Check!**`),
       new TextDisplayBuilder().setContent(
@@ -366,12 +203,66 @@ export function buildConfirmTradeDetailsContainer(
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
-    )
-    .addActionRowComponents(buildCreateThreadButtonsRow(buyerId, sellerId));
+    );
+
+  // Add action row: if both parties present, show confirm/cancel buttons.
+  // If missing, show a disabled placeholder to avoid crashes and make intent clear.
+  if (buyerId && sellerId) {
+    container.addActionRowComponents(
+      buildCreateThreadButtonsRow(buyerId, sellerId),
+    );
+  } else {
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId('missing_participants')
+          .setLabel('Participants missing')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true),
+      ),
+    );
+  }
+
+  return container;
 }
 
-export function buildConnectWalletContainer(tradeId, buyerId, sellerId) {
-  const url = `https://www.google.com`;
+/** Build a wallet connection container. */
+export async function buildConnectWalletContainer(
+  tradeId,
+  buyerId,
+  sellerId,
+  walletStatus = {},
+  buyerDisplay = null,
+  sellerDisplay = null,
+) {
+  const buyerConnected = !!walletStatus.buyerWallet;
+  const sellerConnected = !!walletStatus.sellerWallet;
+
+  // Always show display names if available, otherwise show user ID
+  const buyerLabel = buyerDisplay || `User ${buyerId.slice(-4)}`;
+  const sellerLabel = sellerDisplay || `User ${sellerId.slice(-4)}`;
+
+  const statusLines = [];
+  if (buyerConnected) {
+    statusLines.push(
+      `✅ **Buyer** (${buyerLabel}): ${walletStatus.buyerWallet}`,
+    );
+  } else {
+    statusLines.push(
+      `⏳ **Buyer** (${buyerLabel}): Awaiting wallet connection`,
+    );
+  }
+
+  if (sellerConnected) {
+    statusLines.push(
+      `✅ **Seller** (${sellerLabel}): ${walletStatus.sellerWallet}`,
+    );
+  } else {
+    statusLines.push(
+      `⏳ **Seller** (${sellerLabel}): Awaiting wallet connection`,
+    );
+  }
+
   const container = new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
     .addTextDisplayComponents(
@@ -385,14 +276,23 @@ export function buildConnectWalletContainer(tradeId, buyerId, sellerId) {
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `Trade ID: \`${tradeId}\`\n` +
-          `Buyer: <@${buyerId}>, Seller: <@${sellerId}>`,
+        `Trade ID: \`${tradeId}\`\n**Buyer:** ${buyerLabel}\n**Seller:** ${sellerLabel}`,
       ),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     )
-    .addActionRowComponents(buildConnectWalletButton(url));
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `**Wallet Connection Status:**\n${statusLines.join('\n')}`,
+      ),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addActionRowComponents(
+      buildConnectWalletButton(tradeId, buyerId, sellerId),
+    );
 
   return container;
 }
