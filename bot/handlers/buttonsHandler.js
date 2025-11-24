@@ -150,7 +150,7 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
 
   await interaction.deferUpdate();
   const loadingText = new TextDisplayBuilder().setContent(
-    '*Creating private thread...*',
+    '⏳ *Creating private thread...*',
   );
   const loadingContainer = buildConfirmTradeDetailsContainer(buyerId, sellerId);
   const loadingPayload = loadingContainer
@@ -296,7 +296,7 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
     }
 
     const successText = new TextDisplayBuilder().setContent(
-      `**Success!** Your private trade channel has been created: ${thread.toString()}`,
+      `**✅ Success!** Your private trade channel has been created: ${thread.toString()}`,
     );
     const successContainer = buildConfirmTradeDetailsContainer(
       buyerId,

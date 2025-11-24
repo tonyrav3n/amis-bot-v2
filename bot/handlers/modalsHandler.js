@@ -1,6 +1,7 @@
 import { MessageFlags } from 'discord.js';
 
 import { buildConfirmTradeDetailsContainer } from '../utils/components/containers.js';
+import { calculateTradeFees } from '../utils/fees.js';
 import { logger } from '../utils/logger.js';
 import { normalizeUsdAmount } from '../utils/validation.js';
 
@@ -53,6 +54,48 @@ async function handleTradeDetailsModal(interaction) {
   const role = interaction.fields.getField('role_opt').values[0];
   const description = interaction.fields.getTextInputValue('description_input');
 
+  const priceValidation = normalizeUsdAmount(priceValue);
+
+  if (!priceValidation.ok) {
+    return interaction.reply({
+      content: `'❌ **Invalid Price:** ${priceValidation.error}`,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  // Check 1: Self-Trade
+  if (counterpartyId === userId) {
+    logger.warn(`User ${userId} tried to trade with themselves`);
+    return interaction.reply({
+      content:
+        '❌ **You cannot trade with yourself.** Please select another user.',
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  // Check 2: Bot-Trade (Requires Fetching)
+  try {
+    const targetUser = await interaction.client.users.fetch(counterpartyId, {
+      force: true,
+    });
+    if (targetUser.bot) {
+      logger.warn(
+        `User ${userId} tried to trade with a bot (${counterpartyId})`,
+      );
+      return interaction.reply({
+        content:
+          '❌ **You cannot trade with a bot.** Please select a human user.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  } catch (err) {
+    logger.error('Failed to fetch counterparty for validation:', err);
+    return interaction.reply({
+      content: '❌ Invalid User ID provided.',
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
   let buyerId;
   let sellerId;
 
@@ -67,18 +110,11 @@ async function handleTradeDetailsModal(interaction) {
       `Invalid role selection: ${role}. Must be 'buyer' or 'seller'.`,
     );
   }
+  const feesData = calculateTradeFees(priceValue);
 
-  const priceValidation = normalizeUsdAmount(priceValue);
-
-  if (!priceValidation.ok) {
-    await interaction.reply({
-      content: `**Invalid Price:** ${priceValidation.error}`,
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const feesText = 'No fees applied';
+  const feesText = `
+  • **Buyer pays:** $${feesData.buyerTotal} ($${feesData.price} + 2.5%)
+  • **Seller receives:** $${feesData.sellerTotal} ($${feesData.price} - 2.5%)`;
 
   await interaction.reply({
     flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,

@@ -182,25 +182,35 @@ export function buildConfirmTradeDetailsContainer(
   details,
   feesText,
 ) {
+  const tradeDetailsComponents = [
+    new TextDisplayBuilder().setContent(`Buyer: <@${buyerId}>`),
+    new TextDisplayBuilder().setContent(`Seller: <@${sellerId}>`),
+    new TextDisplayBuilder().setContent(`Item: ${item}`),
+    new TextDisplayBuilder().setContent(`Price: $${price}`),
+  ];
+
+  if (details) {
+    tradeDetailsComponents.push(
+      new TextDisplayBuilder().setContent(`Additional Details: ${details}`),
+    );
+  }
+
+  tradeDetailsComponents.push(
+    new TextDisplayBuilder().setContent(`Fees: ${feesText}`),
+  );
+
   const container = new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(`**Let's Double-Check!**`),
       new TextDisplayBuilder().setContent(
-        'Please make sure everything is perfect. This will become the basis for our secure contract.',
+        'Please make sure everything is perfect.',
       ),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     )
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`Buyer: <@${buyerId}>`),
-      new TextDisplayBuilder().setContent(`Seller: <@${sellerId}>`),
-      new TextDisplayBuilder().setContent(`Item: ${item}`),
-      new TextDisplayBuilder().setContent(`Price: $${price}`),
-      new TextDisplayBuilder().setContent(`Additional Details: ${details}`),
-      new TextDisplayBuilder().setContent(`Fees: ${feesText}`),
-    )
+    .addTextDisplayComponents(...tradeDetailsComponents)
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     );

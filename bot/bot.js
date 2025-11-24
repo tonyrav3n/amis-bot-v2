@@ -7,9 +7,6 @@ import { env, validateRequiredEnvVars } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { startWalletServer } from './utils/walletServer.js';
 
-// Export the client so wallet server can access it
-export let client = null;
-
 /**
  * Initializes the Discord bot and establishes connection.
  * @returns {Promise<void>}
@@ -19,10 +16,10 @@ async function initializeBot() {
   validateRequiredEnvVars();
   logger.success('Environment validation passed');
 
-  await startWalletServer();
-
-  client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  const client = new Client({ intents: [GatewayIntentBits.Guilds] });
   client.commands = new Collection();
+
+  await startWalletServer(client);
 
   const commandsDir = path.join(process.cwd(), 'bot', 'commands');
   const commandFiles = fs
@@ -65,5 +62,14 @@ async function initializeBot() {
 
 initializeBot().catch((error) => {
   logger.error('Bot initialization failed:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (error) => {
+  logger.error('Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception:', error);
   process.exit(1);
 });

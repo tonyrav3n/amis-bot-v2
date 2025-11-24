@@ -1,26 +1,178 @@
+import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import express from 'express';
+import jwt from 'jsonwebtoken';
 
 import { env } from '../config/env.js';
 
+import { logger } from './logger.js';
+
+// Module-level variable to hold the bot client instance
+let botClient = null;
+
+// Lazy initialization of Supabase client to avoid top-level errors
+let supabaseClient = null;
+function getSupabaseClient() {
+  if (!supabaseClient) {
+    if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+      throw new Error('Supabase environment variables not configured');
+    }
+    supabaseClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+  }
+  return supabaseClient;
+}
+
 const app = express();
 const PORT = env.WALLET_SERVER_PORT || 3001;
+const CLIENT_URL = env.CLIENT_URL || 'http://localhost:5173';
 
 app.use(
   cors({
-    origin: true, // Allow all origins for development
+    origin: CLIENT_URL,
     credentials: true,
   }),
 );
+
 app.use(express.json());
 app.use(express.static('public'));
 
-const walletConnections = new Map();
+// Note: Data is now stored in Supabase database instead of in-memory Maps
 
-// Registry to track the bot message that corresponds to a given trade.
-// This allows the wallet server to find and update the original welcome/container
-// message that was posted by the bot when the private thread was created.
-const tradeMessageRegistry = new Map();
+// HELPER: Handles the core connection logic
+async function handleWalletConnection(token, discordUserId, walletAddress) {
+  // 1. Validate Input
+  if (!token || !discordUserId || !walletAddress) {
+    throw { status: 400, message: 'Missing required parameters' };
+  }
+
+  // NEW: specific validation for EVM addresses (starts with 0x, 42 chars)
+  const evmAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+  if (!evmAddressRegex.test(walletAddress)) {
+    throw { status: 400, message: 'Invalid wallet address format' };
+  }
+
+  // 2. Verify Token
+  let decoded;
+  try {
+    decoded = jwt.verify(token, env.JWT_SECRET);
+  } catch (jwtError) {
+    throw { status: 401, message: jwtError };
+  }
+
+  const { tradeId, userType } = decoded;
+
+  // 3. Fetch Trade
+  const { data: tradeData, error: tradeError } = await getSupabaseClient()
+    .from('trades')
+    .select('*')
+    .eq('trade_id', tradeId)
+    .single();
+
+  if (tradeError || !tradeData) {
+    throw { status: 404, message: 'Trade not found' };
+  }
+
+  // 4. Authorize User
+  const expectedUserId =
+    userType === 'buyer' ? tradeData.buyer_id : tradeData.seller_id;
+  if (discordUserId !== expectedUserId) {
+    throw { status: 403, message: 'Unauthorized: User ID mismatch' };
+  }
+
+  // 5. Upsert Connection
+  const { error: connError } = await getSupabaseClient()
+    .from('wallet_connections')
+    .upsert(
+      {
+        trade_id: tradeId,
+        discord_user_id: discordUserId,
+        wallet_address: walletAddress,
+      },
+      { onConflict: 'trade_id,discord_user_id' },
+    );
+
+  if (connError) {
+    logger.error('Error storing wallet connection:', connError);
+    throw { status: 500, message: 'Failed to store wallet connection' };
+  }
+
+  logger.info(
+    `Wallet connected: ${tradeId} | ${userType} | ${truncateWalletAddress(walletAddress)}`,
+  );
+
+  // 6. Trigger Discord UI Update (Fire and forget / Best effort)
+  updateDiscordTradeMessage(tradeId, tradeData).catch((err) =>
+    logger.warn('Failed to update Discord UI:', err.message),
+  );
+
+  return { tradeId, userType, walletAddress };
+}
+
+// HELPER: Extracted Discord Message Update Logic
+async function updateDiscordTradeMessage(tradeId, tradeData) {
+  if (!botClient) return;
+
+  const registered = (await getRegisteredTradeMessage(tradeId)) || {};
+  const guildId = tradeData.guild_id || registered.guild_id;
+  const channelId = tradeData.channel_id || registered.channel_id;
+  const messageId = registered.message_id;
+
+  if (!guildId || !channelId) return;
+
+  const guild = await botClient.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return;
+
+  const channel = await guild.channels.fetch(channelId).catch(() => null);
+  if (!channel) return;
+
+  let botMessage = null;
+  if (messageId) {
+    botMessage = await channel.messages.fetch(messageId).catch(() => null);
+  }
+
+  // Fallback search if message ID not found
+  if (!botMessage) {
+    const recent = await channel.messages
+      .fetch({ limit: 20 })
+      .catch(() => null);
+    botMessage = recent?.find(
+      (m) =>
+        m.author?.id === botClient.user?.id &&
+        (m.content.includes(tradeId) || m.components.length > 0),
+    );
+  }
+
+  if (botMessage) {
+    const { buildConnectWalletContainer } = await import(
+      './components/containers.js'
+    );
+    const { data: connections } = await getSupabaseClient()
+      .from('wallet_connections')
+      .select('*')
+      .eq('trade_id', tradeId);
+
+    const buyerConn = connections?.find(
+      (c) => c.discord_user_id === tradeData.buyer_id,
+    );
+    const sellerConn = connections?.find(
+      (c) => c.discord_user_id === tradeData.seller_id,
+    );
+
+    const container = await buildConnectWalletContainer(
+      tradeId,
+      tradeData.buyer_id,
+      tradeData.seller_id,
+      {
+        buyerWallet: buyerConn?.wallet_address || null,
+        sellerWallet: sellerConn?.wallet_address || null,
+      },
+      tradeData.buyer_display || registered.buyer_display,
+      tradeData.seller_display || registered.seller_display,
+    );
+
+    await botMessage.edit({ components: [container.toJSON()] });
+  }
+}
 
 /**
  * Register a Discord message as the canonical message for a trade.
@@ -34,7 +186,7 @@ const tradeMessageRegistry = new Map();
  * @param {string|null} sellerId
  * @returns {boolean}
  */
-export function registerTradeMessage(
+export async function registerTradeMessage(
   tradeId,
   guildId,
   channelId,
@@ -44,7 +196,7 @@ export function registerTradeMessage(
   buyerDisplay = null,
   sellerDisplay = null,
 ) {
-  console.log('🚀 registerTradeMessage CALLED with params:', {
+  logger.debug('🚀 registerTradeMessage CALLED with params:', {
     tradeId,
     guildId,
     channelId,
@@ -55,7 +207,7 @@ export function registerTradeMessage(
     sellerDisplay,
   });
 
-  console.log('🔍 registerTradeMessage called with:', {
+  logger.debug('🔍 registerTradeMessage called with:', {
     tradeId,
     buyerId,
     sellerId,
@@ -70,22 +222,30 @@ export function registerTradeMessage(
   if (!tradeId || !guildId || !channelId || !messageId) return false;
 
   const tradeData = {
-    guildId,
-    channelId,
-    messageId,
-    buyerId: buyerId || null,
-    sellerId: sellerId || null,
-    buyerDisplay: buyerDisplay || null,
-    sellerDisplay: sellerDisplay || null,
-    registeredAt: new Date().toISOString(),
+    trade_id: tradeId,
+    guild_id: guildId,
+    channel_id: channelId,
+    message_id: messageId,
+    buyer_id: buyerId || null,
+    seller_id: sellerId || null,
+    buyer_display: buyerDisplay || null,
+    seller_display: sellerDisplay || null,
   };
 
-  console.log('💾 Storing trade data:', tradeData);
-  tradeMessageRegistry.set(tradeId, tradeData);
-
-  // Log registration for debugging and audit
   try {
-    console.info('Registered trade message for updates', {
+    const { error } = await getSupabaseClient()
+      .from('trades')
+      .upsert(tradeData, { onConflict: 'trade_id' });
+
+    if (error) {
+      logger.error('Error saving trade data:', error);
+      return false;
+    }
+
+    logger.debug('💾 Stored trade data in database:', tradeData);
+
+    // Log registration for debugging and audit
+    logger.info('Registered trade message for updates', {
       tradeId,
       guildId,
       channelId,
@@ -96,52 +256,64 @@ export function registerTradeMessage(
       sellerDisplay: sellerDisplay || null,
       timestamp: new Date().toISOString(),
     });
-  } catch (logErr) {
-    // Do not throw on logging failure; best-effort.
-    // Keep minimal noise in production.
-    try {
-      console.warn(
-        'Failed to log trade message registration',
-        logErr?.message || logErr,
-      );
-    } catch (logErr) {
-      console.warn(
-        'Failed to log trade message registration',
-        logErr?.message || logErr,
-      );
-    }
-  }
 
-  return true;
+    return true;
+  } catch (err) {
+    logger.error('Failed to register trade message:', err);
+    return false;
+  }
 }
 
 // Debug endpoint - best-effort; returns registry and connections for inspection.
 // Access: GET /api/wallet/debug  (optional query param: ?tradeId=<tradeId>)
-app.get('/api/wallet/debug', (req, res) => {
+app.get('/api/wallet/debug', async (req, res) => {
+  if (!env.DEBUG_MODE) {
+    return res.status(403).json({ error: 'Debug mode disabled' });
+  }
+
   try {
     const { tradeId } = req.query;
 
     if (tradeId) {
-      const registryEntry = tradeMessageRegistry.get(tradeId) || null;
-      const connections = [];
-      for (const [key, conn] of walletConnections.entries()) {
-        if (key.startsWith(`${tradeId}:`)) connections.push(conn);
-      }
-      return res.json({ tradeId, registry: registryEntry, connections });
+      const { data: registryEntry, error: regError } = await getSupabaseClient()
+        .from('trades')
+        .select('*')
+        .eq('trade_id', tradeId)
+        .single();
+
+      const { data: connections, error: connError } = await getSupabaseClient()
+        .from('wallet_connections')
+        .select('*')
+        .eq('trade_id', tradeId);
+
+      if (regError) logger.error('Error fetching registry:', regError);
+      if (connError) logger.error('Error fetching connections:', connError);
+
+      return res.json({
+        tradeId,
+        registry: registryEntry || null,
+        connections: connections || [],
+      });
     }
 
     // Return full registries (beware: may be large)
-    const registry = {};
-    for (const [k, v] of tradeMessageRegistry.entries()) {
-      registry[k] = v;
-    }
-    const connections = [];
-    for (const [k, v] of walletConnections.entries()) {
-      connections.push([k, v]);
-    }
-    return res.json({ registry, connections });
+    const { data: registry, error: regError } = await getSupabaseClient()
+      .from('trades')
+      .select('*');
+
+    const { data: connections, error: connError } = await getSupabaseClient()
+      .from('wallet_connections')
+      .select('*');
+
+    if (regError) logger.error('Error fetching registry:', regError);
+    if (connError) logger.error('Error fetching connections:', connError);
+
+    return res.json({
+      registry: registry || [],
+      connections: connections || [],
+    });
   } catch (err) {
-    console.error('Error in /api/wallet/debug handler', err?.message || err);
+    logger.error('Error in /api/wallet/debug handler', err?.message || err);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -150,65 +322,92 @@ app.get('/api/wallet/debug', (req, res) => {
  * Return registered trade message entry or null.
  * @param {string} tradeId
  */
-export function getRegisteredTradeMessage(tradeId) {
-  return tradeMessageRegistry.get(tradeId) || null;
+export async function getRegisteredTradeMessage(tradeId) {
+  try {
+    const { data, error } = await getSupabaseClient()
+      .from('trades')
+      .select('*')
+      .eq('trade_id', tradeId)
+      .single();
+
+    if (error) {
+      logger.error('Error fetching trade data:', error);
+      return null;
+    }
+
+    return data;
+  } catch (err) {
+    logger.error('Failed to get registered trade message:', err);
+    return null;
+  }
 }
 
 /**
  * Generate a wallet connect URL for the client app.
- * Only passes tradeId and userType - all other data is fetched server-side.
+ * Uses a secure JWT token to prevent parameter manipulation.
  */
 export function generateWalletConnectUrl(tradeId, userType) {
-  console.log('🔗 Generating wallet connect URL:', {
+  logger.debug('🔗 Generating wallet connect URL:', {
     tradeId,
     userType,
     clientUrl: env.CLIENT_URL || 'http://localhost:5173',
   });
 
-  const clientUrl = env.CLIENT_URL || 'http://localhost:5173';
-  const params = new URLSearchParams();
-  params.append('tradeId', tradeId);
-  params.append('userType', userType);
-  const url = `${clientUrl}/?${params.toString()}`;
+  // Generate secure JWT token containing tradeId and userType
+  const token = jwt.sign(
+    { tradeId, userType },
+    env.JWT_SECRET,
+    { expiresIn: '1h' }, // Token expires in 1 hour
+  );
 
-  console.log('📤 Generated URL:', url);
+  const params = new URLSearchParams();
+  params.append('token', token);
+  const url = `${CLIENT_URL}/?${params.toString()}`;
+
+  logger.debug('📤 Generated secure URL:', url);
   return url;
 }
 // API endpoint to fetch trade data by tradeId
-app.get('/api/trade/:tradeId', (req, res) => {
+app.get('/api/trade/:tradeId', async (req, res) => {
   try {
     const { tradeId } = req.params;
-    const tradeData = tradeMessageRegistry.get(tradeId);
 
-    console.log('🔍 Trade API request', {
+    const { data: tradeData, error } = await getSupabaseClient()
+      .from('trades')
+      .select('*')
+      .eq('trade_id', tradeId)
+      .single();
+
+    logger.debug('🔍 Trade API request', {
       tradeId,
       found: !!tradeData,
       hasTradeData: !!tradeData,
-      buyerDisplay: tradeData?.buyerDisplay || 'NULL/UNDEFINED',
-      sellerDisplay: tradeData?.sellerDisplay || 'NULL/UNDEFINED',
-      buyerDisplayType: typeof tradeData?.buyerDisplay,
-      sellerDisplayType: typeof tradeData?.sellerDisplay,
+      buyerDisplay: tradeData?.buyer_display || 'NULL/UNDEFINED',
+      sellerDisplay: tradeData?.seller_display || 'NULL/UNDEFINED',
+      buyerDisplayType: typeof tradeData?.buyer_display,
+      sellerDisplayType: typeof tradeData?.seller_display,
       fullTradeData: tradeData,
     });
 
-    if (!tradeData) {
+    if (error || !tradeData) {
+      logger.debug('🔍 Trade API request - not found', { tradeId, error });
       return res.status(404).json({ error: 'Trade not found' });
     }
 
     const responseData = {
       tradeId,
-      buyerId: tradeData.buyerId,
-      sellerId: tradeData.sellerId,
-      buyerDisplay: tradeData.buyerDisplay,
-      sellerDisplay: tradeData.sellerDisplay,
-      guildId: tradeData.guildId,
-      channelId: tradeData.channelId,
+      buyerId: tradeData.buyer_id,
+      sellerId: tradeData.seller_id,
+      buyerDisplay: tradeData.buyer_display,
+      sellerDisplay: tradeData.seller_display,
+      guildId: tradeData.guild_id,
+      channelId: tradeData.channel_id,
     };
 
-    console.log('📤 Trade API response', responseData);
+    logger.debug('📤 Trade API response', responseData);
     res.json(responseData);
   } catch (error) {
-    console.error('Error fetching trade data:', error);
+    logger.error('Error fetching trade data:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -222,258 +421,84 @@ export function truncateWalletAddress(address) {
 
 app.post('/api/wallet/callback', async (req, res) => {
   try {
-    const { tradeId, discordUserId, walletAddress } = req.body;
-
-    if (!tradeId || !discordUserId || !walletAddress) {
-      console.warn('Invalid wallet callback data', {
-        tradeId,
-        discordUserId,
-        walletAddress,
-      });
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-
-    // Fetch trade data from registry
-    const tradeData = tradeMessageRegistry.get(tradeId);
-    if (!tradeData) {
-      return res.status(404).json({ error: 'Trade not found' });
-    }
-
-    // Store wallet connection
-    const connectionKey = `${tradeId}:${discordUserId}`;
-    walletConnections.set(connectionKey, {
-      tradeId,
+    const { token, discordUserId, walletAddress } = req.body;
+    const result = await handleWalletConnection(
+      token,
       discordUserId,
       walletAddress,
-      guildId: tradeData.guildId,
-      channelId: tradeData.channelId,
-      buyerId: tradeData.buyerId,
-      sellerId: tradeData.sellerId,
-      buyerDisplay: tradeData.buyerDisplay,
-      sellerDisplay: tradeData.sellerDisplay,
-      connectedAt: new Date().toISOString(),
-    });
+    );
 
-    console.info('Wallet connection callback received', {
-      tradeId,
-      discordUserId,
-      walletAddress: truncateWalletAddress(walletAddress),
-    });
+    // Callback specific: Redirect URL
+    const successUrl = `${CLIENT_URL}/success?tradeId=${result.tradeId}&discordUserId=${discordUserId}&walletAddress=${walletAddress}&userType=${result.userType}`;
 
-    // Best-effort: attempt to update the original bot message container for this trade.
-    // 1) Check registry for an exact messageId
-    // 2) If not found, try to locate a bot-authored message in the channel that references the tradeId
-    try {
-      const registered = getRegisteredTradeMessage(tradeId) || null;
-      const targetGuildId =
-        tradeData.guildId || (registered && registered.guildId);
-      const targetChannelId =
-        tradeData.channelId || (registered && registered.channelId);
-      const targetMessageId = registered && registered.messageId;
+    res.json({ success: true, redirect: successUrl, ...result });
+  } catch (err) {
+    // Return specific error status if available, else 500
+    res
+      .status(err.status || 500)
+      .json({ error: err.message || 'Internal server error' });
+  }
+});
+app.post('/api/wallet/update', async (req, res) => {
+  try {
+    const { token, discordUserId, walletAddress } = req.body;
+    await handleWalletConnection(token, discordUserId, walletAddress);
 
-      // Dynamically import the bot client to avoid top-level circular imports
-      let botClient = null;
-      try {
-        const botModule = await import('../bot.js');
-        botClient = botModule?.client;
-      } catch (impErr) {
-        // ignore - best-effort
-        console.warn(
-          'Could not import bot client to update message (best-effort):',
-          impErr?.message || impErr,
-        );
-      }
-
-      if (botClient && targetGuildId && targetChannelId) {
-        const guild =
-          botClient.guilds.cache.get(targetGuildId) ||
-          (await botClient.guilds.fetch(targetGuildId).catch(() => null));
-        if (guild) {
-          const channel =
-            guild.channels.cache.get(targetChannelId) ||
-            (await guild.channels.fetch(targetChannelId).catch(() => null));
-          if (channel) {
-            // Try to fetch the registered message by id first
-            let botMessage = null;
-            if (targetMessageId) {
-              botMessage = await channel.messages
-                .fetch(targetMessageId)
-                .catch(() => null);
-            }
-
-            // Fallback: scan recent messages for a bot-authored message that references the tradeId or has components
-            if (!botMessage) {
-              const recent = await channel.messages
-                .fetch({ limit: 50 })
-                .catch(() => null);
-              if (recent) {
-                botMessage =
-                  recent.find((m) => {
-                    if (m.author?.id !== botClient.user?.id) return false;
-                    if (m.components && m.components.length > 0) return true;
-                    if (m.content && tradeId && m.content.includes(tradeId))
-                      return true;
-                    return false;
-                  }) || null;
-              }
-            }
-
-            if (botMessage) {
-              try {
-                // Build updated container and replace components
-                const { buildConnectWalletContainer } = await import(
-                  './components/containers.js'
-                );
-                const tradeConns = getTradeWalletConnections(tradeId);
-
-                // Map wallets to buyer/seller using trade data
-                const buyerConn =
-                  tradeConns.find(
-                    (c) => c.discordUserId === tradeData.buyerId,
-                  ) || null;
-                const sellerConn =
-                  tradeConns.find(
-                    (c) => c.discordUserId === tradeData.sellerId,
-                  ) || null;
-
-                const buyerDisplay =
-                  tradeData.buyerDisplay ||
-                  (registered && registered.buyerDisplay
-                    ? registered.buyerDisplay
-                    : null);
-                const sellerDisplay =
-                  tradeData.sellerDisplay ||
-                  (registered && registered.sellerDisplay
-                    ? registered.sellerDisplay
-                    : null);
-
-                console.log('Updating wallet container', {
-                  tradeId,
-                  buyerDisplay,
-                  sellerDisplay,
-                  buyerWallet: buyerConn
-                    ? truncateWalletAddress(buyerConn.walletAddress)
-                    : null,
-                  sellerWallet: sellerConn
-                    ? truncateWalletAddress(sellerConn.walletAddress)
-                    : null,
-                });
-
-                const container = await buildConnectWalletContainer(
-                  tradeId,
-                  tradeData.buyerId,
-                  tradeData.sellerId,
-                  {
-                    buyerWallet: buyerConn
-                      ? truncateWalletAddress(buyerConn.walletAddress)
-                      : null,
-                    sellerWallet: sellerConn
-                      ? truncateWalletAddress(sellerConn.walletAddress)
-                      : null,
-                  },
-                  buyerDisplay,
-                  sellerDisplay,
-                );
-
-                await botMessage
-                  .edit({ components: [container.toJSON()] })
-                  .catch((e) => {
-                    console.warn(
-                      'Failed to edit bot message with updated container (best-effort):',
-                      e?.message || e,
-                    );
-                  });
-
-                // If we located the message by search (no registered entry), register it for future direct edits
-                if (!registered && botMessage?.id) {
-                  try {
-                    // store registration for future callback updates
-                    tradeMessageRegistry.set(tradeId, {
-                      guildId: targetGuildId,
-                      channelId: targetChannelId,
-                      messageId: botMessage.id,
-                      buyerId: tradeData.buyerId,
-                      sellerId: tradeData.sellerId,
-                      buyerDisplay: tradeData.buyerDisplay,
-                      sellerDisplay: tradeData.sellerDisplay,
-                      registeredAt: new Date().toISOString(),
-                    });
-                    console.info(
-                      'Registered trade message for future updates',
-                      { tradeId, messageId: botMessage.id },
-                    );
-                  } catch (regErr) {
-                    console.warn(
-                      'Failed to register trade message after editing',
-                      regErr?.message || regErr,
-                    );
-                  }
-                }
-              } catch (buildErr) {
-                console.warn(
-                  'Failed to build/update connect wallet container',
-                  buildErr?.message || buildErr,
-                );
-              }
-            } else {
-              console.info(
-                'No bot message found in channel to update for trade',
-                { tradeId },
-              );
-            }
-          }
-        }
-      } else {
-        console.info(
-          'Insufficient context to auto-update Discord UI for wallet callback',
-          {
-            tradeId,
-            registered: !!registered,
-          },
-        );
-      }
-    } catch (notifyErr) {
-      console.warn(
-        'Failed to auto-update discord message after wallet callback (best-effort):',
-        notifyErr?.message || notifyErr,
-      );
-    }
-
-    // Return success response with redirect URL
-    const successUrl = `${env.CLIENT_URL || 'http://localhost:5173'}/success?tradeId=${encodeURIComponent(tradeId)}&discordUserId=${encodeURIComponent(discordUserId)}&walletAddress=${encodeURIComponent(walletAddress)}`;
-    res.json({
-      success: true,
-      redirect: successUrl,
-      tradeId,
-      discordUserId,
-      walletAddress: truncateWalletAddress(walletAddress),
-    });
-  } catch (error) {
-    console.error('Error handling wallet callback:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Update specific: JSON success
+    res.json({ success: true });
+  } catch (err) {
+    res
+      .status(err.status || 500)
+      .json({ error: err.message || 'Internal server error' });
   }
 });
 
-export function getWalletConnection(tradeId, discordUserId) {
-  const connectionKey = `${tradeId}:${discordUserId}`;
-  return walletConnections.get(connectionKey) || null;
-}
+export async function getWalletConnection(tradeId, discordUserId) {
+  try {
+    const { data, error } = await getSupabaseClient()
+      .from('wallet_connections')
+      .select('*')
+      .eq('trade_id', tradeId)
+      .eq('discord_user_id', discordUserId)
+      .single();
 
-export function getTradeWalletConnections(tradeId) {
-  const connections = [];
-  for (const [key, connection] of walletConnections.entries()) {
-    if (key.startsWith(`${tradeId}:`)) {
-      connections.push(connection);
+    if (error) {
+      logger.error('Error fetching wallet connection:', error);
+      return null;
     }
+
+    return data;
+  } catch (err) {
+    logger.error('Failed to get wallet connection:', err);
+    return null;
   }
-  return connections;
 }
 
-export async function startWalletServer() {
+export async function getTradeWalletConnections(tradeId) {
+  try {
+    const { data, error } = await getSupabaseClient()
+      .from('wallet_connections')
+      .select('*')
+      .eq('trade_id', tradeId);
+
+    if (error) {
+      logger.error('Error fetching trade wallet connections:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (err) {
+    logger.error('Failed to get trade wallet connections:', err);
+    return [];
+  }
+}
+
+export async function startWalletServer(client) {
+  botClient = client;
   return new Promise((resolve) => {
     const server = app.listen(PORT, () => {
-      console.info(`Wallet connection server running on port ${PORT}`);
-      console.info(
+      logger.info(`Wallet connection server running on port ${PORT}`);
+      logger.info(
         `Server URL: ${env.SERVER_URL || `http://localhost:${PORT}`}`,
       );
       resolve(server);
@@ -484,7 +509,7 @@ export async function startWalletServer() {
 // Start server if this file is run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   startWalletServer().catch((error) => {
-    console.error('Failed to start wallet server:', error);
+    logger.error('Failed to start wallet server:', error);
     process.exit(1);
   });
 }

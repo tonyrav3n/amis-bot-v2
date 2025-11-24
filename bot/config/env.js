@@ -34,6 +34,7 @@ dotenv.config({ quiet: true });
  * @property {string} AMIS_ESCROW_ADDRESS - Smart contract address for escrow
  * @property {string} DATABASE_URL - Database connection URL
  * @property {string} DATABASE_SSL - Database SSL configuration
+ * @property {string} JWT_SECRET - Secret key for JWT token signing
  * @property {boolean} DEBUG_MODE - Enable/disable debug logging (from DEBUG_MODE env var)
  */
 export const env = {
@@ -49,7 +50,13 @@ export const env = {
   AMIS_ESCROW_ADDRESS: process.env.AMIS_ESCROW_ADDRESS?.trim() || '',
   DATABASE_URL: process.env.DATABASE_URL?.trim() || '',
   DATABASE_SSL: process.env.DATABASE_SSL?.trim() || '',
+  SUPABASE_URL: process.env.SUPABASE_URL?.trim() || '',
+  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY?.trim() || '',
+  JWT_SECRET: process.env.JWT_SECRET?.trim() || '',
   DEBUG_MODE: process.env.DEBUG_MODE?.trim().toLowerCase() === 'true',
+  CLIENT_URL: process.env.CLIENT_URL?.trim() || 'http://localhost:5173',
+  SERVER_URL: process.env.SERVER_URL?.trim() || '',
+  WALLET_SERVER_PORT: Number(process.env.WALLET_SERVER_PORT) || 3001,
 };
 
 /**
