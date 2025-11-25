@@ -256,21 +256,21 @@ export async function buildConnectWalletContainer(
   const statusLines = [];
   if (buyerConnected) {
     statusLines.push(
-      `✅ **Buyer** (${buyerLabel}): ${truncateWalletAddress(walletStatus.buyerWallet)}`,
+      `\n✅ **Buyer** (${buyerLabel}): ${truncateWalletAddress(walletStatus.buyerWallet)}`,
     );
   } else {
     statusLines.push(
-      `⏳ **Buyer** (${buyerLabel}): Awaiting wallet connection`,
+      `\n⏳ **Buyer** (${buyerLabel}): Awaiting wallet connection`,
     );
   }
 
   if (sellerConnected) {
     statusLines.push(
-      `✅ **Seller** (${sellerLabel}): ${truncateWalletAddress(walletStatus.sellerWallet)}`,
+      `\n✅ **Seller** (${sellerLabel}): ${truncateWalletAddress(walletStatus.sellerWallet)}`,
     );
   } else {
     statusLines.push(
-      `⏳ **Seller** (${sellerLabel}): Awaiting wallet connection`,
+      `\n⏳ **Seller** (${sellerLabel}): Awaiting wallet connection`,
     );
   }
 
@@ -287,7 +287,7 @@ export async function buildConnectWalletContainer(
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `Trade ID: \`${tradeId}\`\n**Buyer:** ${buyerLabel}\n**Seller:** ${sellerLabel}`,
+        `Trade ID: \`${tradeId}\`\n\n**Buyer:** <@${buyerId}>\n\n**Seller:** <@${sellerId}>`,
       ),
     )
     .addSeparatorComponents(
@@ -295,7 +295,7 @@ export async function buildConnectWalletContainer(
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `**Wallet Connection Status:**\n${statusLines.join('\n')}`,
+        `**Wallet Connection Status:**${statusLines.join('\n')}`,
       ),
     )
     .addSeparatorComponents(

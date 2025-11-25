@@ -53,7 +53,6 @@ export async function handleButton(interaction) {
         sellerId,
       );
     }
-
     default:
       logger.warn('Unknown button action:', {
         action,
