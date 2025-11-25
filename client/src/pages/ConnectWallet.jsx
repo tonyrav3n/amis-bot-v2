@@ -1,8 +1,31 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 // 1. Import the necessary hooks from Reown
 import { useAppKit, useAppKitAccount } from '@reown/appkit/react';
+
+function parseJwt(token) {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(''),
+    );
+    return JSON.parse(jsonPayload);
+  } catch (e) {
+    console.error('Failed to parse JWT:', e);
+    return null;
+  }
+}
+
+function truncateWalletAddress(address) {
+  if (!address || address.length < 10) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
 
 function ConnectWallet() {
   // 2. Get the 'open' function to trigger the modal
@@ -13,14 +36,24 @@ function ConnectWallet() {
 
   // Extract URL parameters
   const urlParams = new URLSearchParams(window.location.search);
-  const tradeId = urlParams.get('tradeId');
-  const userType = urlParams.get('userType');
+  const token = urlParams.get('token');
+
+  // 2. Decode the token to get tradeId and userType
+  const decodedData = useMemo(() => {
+    if (!token) return null;
+    return parseJwt(token);
+  }, [token]);
+
+  const tradeId = decodedData?.tradeId;
+  const userType = decodedData?.userType;
 
   // State for trade data
   const [tradeData, setTradeData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [callbackSent, setCallbackSent] = useState(false);
+
+  const prevAddressRef = useRef(null);
 
   // Fetch trade data from API
   useEffect(() => {
@@ -67,6 +100,20 @@ function ConnectWallet() {
             userType,
           });
 
+          // Inside your useEffect, before the fetch call:
+
+          console.log('DEBUG VALUES:', {
+            userType: userType,
+            tradeDataBuyerId: tradeData?.buyerId,
+            tradeDataSellerId: tradeData?.sellerId,
+            computedDiscordUserId: discordUserId,
+          });
+
+          if (!discordUserId) {
+            console.error('STOPPING: discordUserId is missing!');
+            return; // Stop execution so we don't spam the API
+          }
+
           const response = await fetch(
             'http://localhost:3001/api/wallet/callback',
             {
@@ -75,7 +122,7 @@ function ConnectWallet() {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                tradeId,
+                token,
                 discordUserId,
                 walletAddress: address,
               }),
@@ -92,9 +139,6 @@ function ConnectWallet() {
           const result = await response.json();
           console.log('Wallet callback successful:', result);
           setCallbackSent(true);
-
-          // Redirect to success page using the URL from response
-          window.location.href = result.redirect;
         } catch (err) {
           console.error('Error sending wallet callback:', err);
           setError(`Failed to connect wallet: ${err.message}`);
@@ -104,6 +148,18 @@ function ConnectWallet() {
       sendCallback();
     }
   }, [isConnected, address, tradeData, callbackSent, tradeId, userType]);
+
+  // Reset callbackSent on wallet switch
+  useEffect(() => {
+    if (prevAddressRef.current && prevAddressRef.current !== address) {
+      console.log('🔄 Wallet switched:', {
+        old: prevAddressRef.current,
+        new: address,
+      });
+      setCallbackSent(false); // ✅ Allow re-send
+    }
+    prevAddressRef.current = address;
+  }, [address]);
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-brand-bg">
@@ -160,7 +216,9 @@ function ConnectWallet() {
             <div>
               <p className="text-sm font-medium">Connected Wallet:</p>
               {/* 6. Display the real address */}
-              <p className="text-sm break-all">{address}</p>
+              <p className="text-sm break-all">
+                {truncateWalletAddress(address)}
+              </p>
 
               {/* Optional: Add a button to view account/disconnect */}
               <Button

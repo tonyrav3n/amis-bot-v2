@@ -12,6 +12,7 @@ import {
 } from 'discord.js';
 
 import { COLORS, ASSETS } from '../../config/theme.js';
+import { truncateWalletAddress } from '../walletServer.js';
 
 import {
   buildConnectWalletButton,
@@ -255,7 +256,7 @@ export async function buildConnectWalletContainer(
   const statusLines = [];
   if (buyerConnected) {
     statusLines.push(
-      `✅ **Buyer** (${buyerLabel}): ${walletStatus.buyerWallet}`,
+      `✅ **Buyer** (${buyerLabel}): ${truncateWalletAddress(walletStatus.buyerWallet)}`,
     );
   } else {
     statusLines.push(
@@ -265,7 +266,7 @@ export async function buildConnectWalletContainer(
 
   if (sellerConnected) {
     statusLines.push(
-      `✅ **Seller** (${sellerLabel}): ${walletStatus.sellerWallet}`,
+      `✅ **Seller** (${sellerLabel}): ${truncateWalletAddress(walletStatus.sellerWallet)}`,
     );
   } else {
     statusLines.push(
