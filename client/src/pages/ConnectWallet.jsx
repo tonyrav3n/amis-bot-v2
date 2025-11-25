@@ -27,6 +27,14 @@ function truncateWalletAddress(address) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function truncateTradeId(id) {
+  if (!id) return 'Not provided';
+  if (id.length > 20) {
+    return `${id.slice(0, 8)}...${id.slice(-4)}`;
+  }
+  return id;
+}
+
 function ConnectWallet() {
   // 2. Get the 'open' function to trigger the modal
   const { open } = useAppKit();
@@ -178,7 +186,9 @@ function ConnectWallet() {
             <>
               <div>
                 <p className="text-sm font-medium">Trade ID:</p>
-                <p className="text-sm">{tradeId || 'Not provided'}</p>
+                <p className="text-sm" title={tradeId}>
+                  {truncateTradeId(tradeId)}
+                </p>
               </div>
               <div>
                 <p className="text-sm font-medium">Your Role:</p>

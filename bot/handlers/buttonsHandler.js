@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+
 import {
   MessageFlags,
   TextDisplayBuilder,
@@ -224,7 +226,9 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
       rawTitle.length > MAX_THREAD_NAME_LENGTH
         ? rawTitle.substring(0, MAX_THREAD_NAME_LENGTH - 1)
         : rawTitle;
-    const tradeId = `${buyerLast4}-${sellerLast4}-${timestamp}`;
+    // Use UUID for collision resistance.
+    // Supabase trade_id is now a UUID string.
+    const tradeId = randomUUID();
 
     const thread = await interaction.channel.threads.create({
       name: threadTitle,
