@@ -53,6 +53,16 @@ export async function handleButton(interaction) {
         sellerId,
       );
     }
+    case 'cancel_trade':
+      logger.info('Cancel trade button clicked', {
+        userId: interaction.user.id,
+      });
+      await interaction.update({
+        content: 'Cancelled',
+        components: [],
+      });
+      return;
+
     default:
       logger.warn('Unknown button action:', {
         action,
