@@ -53,6 +53,16 @@ export async function handleButton(interaction) {
         sellerId,
       );
     }
+
+    case 'proceed_trade': {
+      const [tradeId, buyerId, sellerId] = rest;
+      return await handleProceedButton(
+        interaction,
+        tradeId,
+        buyerId,
+        sellerId,
+      );
+    }
     case 'cancel_trade':
       logger.info('Cancel trade button clicked', {
         userId: interaction.user.id,
@@ -249,6 +259,7 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
       {},
       buyerDisplay,
       sellerDisplay,
+      { buyerConfirmed: false, sellerConfirmed: false },
     );
     const welcomeMessage = await thread.send({
       flags: MessageFlags.IsComponentsV2,
@@ -287,6 +298,8 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
         sellerId,
         buyerDisplay,
         sellerDisplay,
+        false,
+        false,
       );
 
       console.log('✅ Trade message registration result:', result);
@@ -408,6 +421,99 @@ async function handleConnectWalletButton(
     }
     await interaction.editReply({
       content: '❌ Error initiating wallet connection. Please try again.',
+    });
+  }
+}
+
+/**
+ * Handles dual confirmation proceed button clicks.
+ */
+async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
+  const userId = interaction.user.id;
+  let userType = null;
+
+  if (userId === buyerId) {
+    userType = 'buyer';
+  } else if (userId === sellerId) {
+    userType = 'seller';
+  } else {
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    }
+    await interaction.editReply({
+      content: '❌ Only the buyer or seller can confirm this trade.',
+    });
+    return;
+  }
+
+  try {
+    const {
+      confirmTradeProceedStep,
+      getRegisteredTradeMessage,
+      getWalletConnection,
+      refreshTradeMessage,
+    } = await import('../utils/walletServer.js');
+
+    const walletConnection = await getWalletConnection(tradeId, userId);
+    if (!walletConnection) {
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      }
+      await interaction.editReply({
+        content:
+          '🔐 Please connect your wallet before confirming. Use the **Connect Your Wallet** button above.',
+      });
+      return;
+    }
+
+    const tradeData = await getRegisteredTradeMessage(tradeId);
+    if (!tradeData) {
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      }
+      await interaction.editReply({
+        content:
+          '❌ Unable to find this trade. Please restart the flow or contact support.',
+      });
+      return;
+    }
+
+    const alreadyConfirmed =
+      userType === 'buyer'
+        ? !!tradeData.buyer_confirmed
+        : !!tradeData.seller_confirmed;
+
+    let updatedTrade = tradeData;
+    let responseMessage =
+      '✅ You have already confirmed. Waiting for the other participant.';
+
+    if (!alreadyConfirmed) {
+      updatedTrade = await confirmTradeProceedStep(tradeId, userType);
+      const bothConfirmed =
+        updatedTrade?.buyer_confirmed && updatedTrade?.seller_confirmed;
+
+      await refreshTradeMessage(tradeId, updatedTrade);
+
+      responseMessage = bothConfirmed
+        ? '✅ Both confirmations recorded. Development in progress — we will update this thread once the next action is ready.'
+        : '⚡ Confirmation received. Waiting for the other participant to confirm.';
+    }
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.reply({
+        content: responseMessage,
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      await interaction.editReply({ content: responseMessage });
+    }
+  } catch (error) {
+    logger.error('Error handling proceed confirmation:', error);
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    }
+    await interaction.editReply({
+      content: '❌ Unable to record your confirmation. Please try again.',
     });
   }
 }

@@ -49,3 +49,14 @@ export function buildConnectWalletButton(tradeId, buyerId, sellerId) {
       .setStyle(ButtonStyle.Primary),
   );
 }
+
+/** Build proceed confirmation button. */
+export function buildProceedButton(tradeId, buyerId, sellerId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`proceed_trade:${tradeId}:${buyerId}:${sellerId}`)
+      .setLabel('Proceed')
+      .setEmoji('⚡')
+      .setStyle(ButtonStyle.Success),
+  );
+}
