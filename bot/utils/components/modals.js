@@ -5,17 +5,15 @@ import {
   LabelBuilder,
 } from 'discord.js';
 
-import { logger } from '../logger.js';
-
 import {
   buildCounterpartySelect,
   buildRoleSelectionSelect,
 } from './selects.js';
 
-/** Build a trade details modal for collecting trade information. */
+/**
+ * Build trade details modal - collect item, price, counterparty, role, description.
+ */
 export function buildTradeDetailsModal() {
-  logger.debug('Building trade details modal');
-
   return new ModalBuilder()
     .setCustomId(`trade_details_mdl`)
     .setTitle('Trade Details')

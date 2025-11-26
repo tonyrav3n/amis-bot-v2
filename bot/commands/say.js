@@ -18,7 +18,6 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .setContexts([InteractionContextType.Guild])
 
-  // /say message
   .addSubcommand((sub) =>
     sub
       .setName('message')
@@ -37,8 +36,6 @@ export const data = new SlashCommandBuilder()
           .setRequired(true),
       ),
   )
-
-  // /say container
   .addSubcommand((sub) =>
     sub
       .setName('container')
@@ -83,8 +80,6 @@ export const data = new SlashCommandBuilder()
           .setDescription('Include banner image in the container'),
       ),
   )
-
-  // /say dm
   .addSubcommand((sub) =>
     sub
       .setName('dm')

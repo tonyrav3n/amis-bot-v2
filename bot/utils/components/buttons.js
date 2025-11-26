@@ -1,10 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
-import { logger } from '../logger.js';
-
-/** Build a verification button for new users. */
 export function buildVerifyButton() {
-  logger.debug('🔘 Building verify button');
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('verify_assign_role_btn')
@@ -14,7 +10,6 @@ export function buildVerifyButton() {
   );
 }
 
-/** Build a create trade button for initiating trade creation flows. */
 export function buildTradeButton() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -25,7 +20,6 @@ export function buildTradeButton() {
   );
 }
 
-/** Build create thread confirmation buttons. */
 export function buildCreateThreadButtonsRow(buyerId, sellerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -40,7 +34,6 @@ export function buildCreateThreadButtonsRow(buyerId, sellerId) {
   );
 }
 
-/** Build wallet connection button. */
 export function buildConnectWalletButton(tradeId, buyerId, sellerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()

@@ -21,7 +21,6 @@ import {
   buildVerifyButton,
 } from './buttons.js';
 
-/** Build a verification container for new user onboarding. */
 export function buildVerifyContainer() {
   return new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
@@ -43,14 +42,7 @@ export function buildVerifyContainer() {
 }
 
 /**
- * Build a message container for styled content display.
- * @param {string} msgContent - Main message content
- * @param {Object} options - Styling options
- * @param {string} [options.header] - Optional header text
- * @param {string} [options.colorKey='green'] - Color theme
- * @param {boolean} [options.includeThumb=false] - Include logo thumbnail
- * @param {boolean} [options.includeBanner=false] - Include banner image
- * @returns {ContainerBuilder} Styled container
+ * Build styled message container with optional header, banner, thumbnail.
  */
 export function buildSayContainerContainer(msgContent, options = {}) {
   const {
@@ -108,7 +100,6 @@ export function buildSayContainerContainer(msgContent, options = {}) {
   return builder;
 }
 
-/** Build a DM container for styled content display. */
 export function buildSayDmContainer(
   msgContent,
   msgTitle,
@@ -145,7 +136,6 @@ export function buildSayDmContainer(
   return builder;
 }
 
-/** Build a trade creation container for promoting trade services. */
 export function buildTradeContainer() {
   return new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
@@ -166,14 +156,7 @@ export function buildTradeContainer() {
 }
 
 /**
- * Build a trade confirmation container for final review.
- * @param {string} buyerId - Discord user ID of the buyer
- * @param {string} sellerId - Discord user ID of the seller
- * @param {string} item - Description of item/service being traded
- * @param {string} price - Formatted price
- * @param {string} details - Additional trade details
- * @param {string} feesText - Text describing applied fees
- * @returns {ContainerBuilder} Trade confirmation container
+ * Display trade confirmation details with fees for buyer and seller review.
  */
 export function buildConfirmTradeDetailsContainer(
   buyerId,
@@ -216,8 +199,6 @@ export function buildConfirmTradeDetailsContainer(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     );
 
-  // Add action row: if both parties present, show confirm/cancel buttons.
-  // If missing, show a disabled placeholder to avoid crashes and make intent clear.
   if (buyerId && sellerId) {
     container.addActionRowComponents(
       buildCreateThreadButtonsRow(buyerId, sellerId),
@@ -237,7 +218,9 @@ export function buildConfirmTradeDetailsContainer(
   return container;
 }
 
-/** Build a wallet connection container. */
+/**
+ * Display wallet connection status and buttons for each party to connect.
+ */
 export async function buildConnectWalletContainer(
   tradeId,
   buyerId,
@@ -249,7 +232,6 @@ export async function buildConnectWalletContainer(
   const buyerConnected = !!walletStatus.buyerWallet;
   const sellerConnected = !!walletStatus.sellerWallet;
 
-  // Always show display names if available, otherwise show user ID
   const buyerLabel = buyerDisplay || `User ${buyerId.slice(-4)}`;
   const sellerLabel = sellerDisplay || `User ${sellerId.slice(-4)}`;
 

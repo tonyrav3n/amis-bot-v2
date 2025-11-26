@@ -7,7 +7,7 @@ import { env, validateRequiredEnvVars } from './config/env.js';
 import { logger } from './utils/logger.js';
 
 /**
- * Registers all slash commands with the Discord API.
+ * Load and register slash commands with Discord API.
  */
 async function deployCommands() {
   try {
@@ -22,7 +22,6 @@ async function deployCommands() {
       .filter((f) => f.endsWith('.js'));
 
     for (const file of commandFiles) {
-      // Use a dynamic import to load each command module
       const mod = await import(`./commands/${file}`);
       if (mod?.data?.toJSON) {
         commands.push(mod.data.toJSON());
@@ -36,7 +35,6 @@ async function deployCommands() {
 
     logger.info(`Registering ${commands.length} application (/) commands...`);
 
-    // The put method is used to fully refresh all commands in the guild with the current set.
     const data = await rest.put(
       Routes.applicationGuildCommands(env.CLIENT_ID, env.GUILD_ID),
       { body: commands },

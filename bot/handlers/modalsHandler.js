@@ -5,7 +5,9 @@ import { calculateTradeFees } from '../utils/fees.js';
 import { logger } from '../utils/logger.js';
 import { normalizeUsdAmount } from '../utils/validation.js';
 
-/** Routes modal submissions to appropriate handlers. */
+/**
+ * Route modal submissions to appropriate handlers.
+ */
 export async function handleModal(interaction) {
   const { customId } = interaction;
   const userId = interaction.user.id;
@@ -43,7 +45,9 @@ export async function handleModal(interaction) {
   }
 }
 
-/** Handle trade details modal submission. */
+/**
+ * Process trade details modal submission - validate and display fee breakdown.
+ */
 async function handleTradeDetailsModal(interaction) {
   const userId = interaction.user.id;
 
@@ -63,7 +67,6 @@ async function handleTradeDetailsModal(interaction) {
     });
   }
 
-  // Check 1: Self-Trade
   if (counterpartyId === userId) {
     logger.warn(`User ${userId} tried to trade with themselves`);
     return interaction.reply({
@@ -72,16 +75,12 @@ async function handleTradeDetailsModal(interaction) {
       flags: MessageFlags.Ephemeral,
     });
   }
-
-  // Check 2: Bot-Trade (Requires Fetching)
   try {
     const targetUser = await interaction.client.users.fetch(counterpartyId, {
       force: true,
     });
     if (targetUser.bot) {
-      logger.warn(
-        `User ${userId} tried to trade with a bot (${counterpartyId})`,
-      );
+      logger.warn(`User ${userId} tried to trade with a bot (${counterpartyId})`);
       return interaction.reply({
         content:
           '❌ **You cannot trade with a bot.** Please select a human user.',

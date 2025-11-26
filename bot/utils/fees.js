@@ -1,30 +1,22 @@
 /**
- * Calculate trade fees and totals for buyers and sellers.
- * Current Policy: 2.5% fee added to buyer, 2.5% fee deducted from seller.
- * * @param {string|number} priceInput - The base price of the item
- * @returns {Object} Calculated totals and formatted text
+ * Calculate trade fees (2.5% added to buyer, 2.5% deducted from seller).
+ * @param {string|number} priceInput - Base trade price
+ * @returns {{ price, buyerTotal, sellerTotal }} Formatted totals, or null if invalid
  */
 export function calculateTradeFees(priceInput) {
   const priceNum = parseFloat(priceInput);
-
-  // Guard against invalid inputs if validation hasn't caught it yet
   if (isNaN(priceNum)) {
     return null;
   }
 
-  const FEE_RATE = 0.025; // 2.5%
-  const feeAmountNum = priceNum * FEE_RATE;
-  const buyerTotalNum = priceNum + feeAmountNum;
-  const sellerTotalNum = priceNum - feeAmountNum;
-
-  // Format all values to 2 decimal places
-  const price = priceNum.toFixed(2);
-  const buyerTotal = buyerTotalNum.toFixed(2);
-  const sellerTotal = sellerTotalNum.toFixed(2);
+  const FEE_RATE = 0.025;
+  const feeAmount = priceNum * FEE_RATE;
+  const buyerTotal = priceNum + feeAmount;
+  const sellerTotal = priceNum - feeAmount;
 
   return {
-    price,
-    buyerTotal,
-    sellerTotal,
+    price: priceNum.toFixed(2),
+    buyerTotal: buyerTotal.toFixed(2),
+    sellerTotal: sellerTotal.toFixed(2),
   };
 }

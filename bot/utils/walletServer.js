@@ -7,11 +7,12 @@ import { env } from '../config/env.js';
 
 import { logger } from './logger.js';
 
-// Module-level variable to hold the bot client instance
 let botClient = null;
-
-// Lazy initialization of Supabase client to avoid top-level errors
 let supabaseClient = null;
+
+/**
+ * Lazy load Supabase client - avoid top-level initialization errors.
+ */
 function getSupabaseClient() {
   if (!supabaseClient) {
     if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
@@ -36,22 +37,19 @@ app.use(
 app.use(express.json());
 app.use(express.static('public'));
 
-// Note: Data is now stored in Supabase database instead of in-memory Maps
-
-// HELPER: Handles the core connection logic
+/**
+ * Process wallet connection: verify JWT, authorize user, store wallet address.
+ */
 async function handleWalletConnection(token, discordUserId, walletAddress) {
-  // 1. Validate Input
   if (!token || !discordUserId || !walletAddress) {
     throw { status: 400, message: 'Missing required parameters' };
   }
 
-  // NEW: specific validation for EVM addresses (starts with 0x, 42 chars)
   const evmAddressRegex = /^0x[a-fA-F0-9]{40}$/;
   if (!evmAddressRegex.test(walletAddress)) {
     throw { status: 400, message: 'Invalid wallet address format' };
   }
 
-  // 2. Verify Token
   let decoded;
   try {
     decoded = jwt.verify(token, env.JWT_SECRET);
@@ -61,7 +59,6 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
 
   const { tradeId, userType } = decoded;
 
-  // 3. Fetch Trade
   const { data: tradeData, error: tradeError } = await getSupabaseClient()
     .from('trades')
     .select('*')
@@ -72,14 +69,12 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     throw { status: 404, message: 'Trade not found' };
   }
 
-  // 4. Authorize User
   const expectedUserId =
     userType === 'buyer' ? tradeData.buyer_id : tradeData.seller_id;
   if (discordUserId !== expectedUserId) {
     throw { status: 403, message: 'Unauthorized: User ID mismatch' };
   }
 
-  // 5. Upsert Connection
   const { error: connError } = await getSupabaseClient()
     .from('wallet_connections')
     .upsert(
@@ -100,7 +95,6 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     `Wallet connected: ${tradeId} | ${userType} | ${truncateWalletAddress(walletAddress)}`,
   );
 
-  // 6. Trigger Discord UI Update (Fire and forget / Best effort)
   updateDiscordTradeMessage(tradeId, tradeData).catch((err) =>
     logger.warn('Failed to update Discord UI:', err.message),
   );
@@ -108,7 +102,9 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
   return { tradeId, userType, walletAddress };
 }
 
-// HELPER: Extracted Discord Message Update Logic
+/**
+ * Update Discord message when wallet connections change - best effort.
+ */
 async function updateDiscordTradeMessage(tradeId, tradeData) {
   if (!botClient) return;
 
@@ -130,7 +126,6 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
     botMessage = await channel.messages.fetch(messageId).catch(() => null);
   }
 
-  // Fallback search if message ID not found
   if (!botMessage) {
     const recent = await channel.messages
       .fetch({ limit: 20 })
@@ -176,15 +171,7 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
 
 /**
  * Register a Discord message as the canonical message for a trade.
- * Called by the bot after it posts the welcome/connect-wallet container.
- *
- * @param {string} tradeId
- * @param {string} guildId
- * @param {string} channelId
- * @param {string} messageId
- * @param {string|null} buyerId
- * @param {string|null} sellerId
- * @returns {boolean}
+ * Enables the wallet server to update the message when wallets connect.
  */
 export async function registerTradeMessage(
   tradeId,
@@ -196,28 +183,6 @@ export async function registerTradeMessage(
   buyerDisplay = null,
   sellerDisplay = null,
 ) {
-  logger.debug('🚀 registerTradeMessage CALLED with params:', {
-    tradeId,
-    guildId,
-    channelId,
-    messageId,
-    buyerId,
-    sellerId,
-    buyerDisplay,
-    sellerDisplay,
-  });
-
-  logger.debug('🔍 registerTradeMessage called with:', {
-    tradeId,
-    buyerId,
-    sellerId,
-    buyerDisplay: buyerDisplay || 'NULL/UNDEFINED',
-    sellerDisplay: sellerDisplay || 'NULL/UNDEFINED',
-    buyerDisplayType: typeof buyerDisplay,
-    sellerDisplayType: typeof sellerDisplay,
-    buyerDisplayLength: buyerDisplay?.length || 0,
-    sellerDisplayLength: sellerDisplay?.length || 0,
-  });
 
   if (!tradeId || !guildId || !channelId || !messageId) return false;
 
@@ -242,9 +207,6 @@ export async function registerTradeMessage(
       return false;
     }
 
-    logger.debug('💾 Stored trade data in database:', tradeData);
-
-    // Log registration for debugging and audit
     logger.info('Registered trade message for updates', {
       tradeId,
       guildId,
@@ -264,8 +226,10 @@ export async function registerTradeMessage(
   }
 }
 
-// Debug endpoint - best-effort; returns registry and connections for inspection.
-// Access: GET /api/wallet/debug  (optional query param: ?tradeId=<tradeId>)
+/**
+ * Debug endpoint - return registry and connections for inspection.
+ * GET /api/wallet/debug?tradeId=<tradeId> (optional)
+ */
 app.get('/api/wallet/debug', async (req, res) => {
   if (!env.DEBUG_MODE) {
     return res.status(403).json({ error: 'Debug mode disabled' });
@@ -319,8 +283,8 @@ app.get('/api/wallet/debug', async (req, res) => {
 });
 
 /**
- * Return registered trade message entry or null.
- * @param {string} tradeId
+ * Fetch registered trade message data by tradeId.
+ * @returns {Promise<Object|null>}
  */
 export async function getRegisteredTradeMessage(tradeId) {
   try {
@@ -343,31 +307,25 @@ export async function getRegisteredTradeMessage(tradeId) {
 }
 
 /**
- * Generate a wallet connect URL for the client app.
- * Uses a secure JWT token to prevent parameter manipulation.
+ * Generate JWT-secured wallet connect URL for the client app.
+ * Token expires in 1 hour.
  */
 export function generateWalletConnectUrl(tradeId, userType) {
-  logger.debug('🔗 Generating wallet connect URL:', {
-    tradeId,
-    userType,
-    clientUrl: env.CLIENT_URL || 'http://localhost:5173',
-  });
-
-  // Generate secure JWT token containing tradeId and userType
   const token = jwt.sign(
     { tradeId, userType },
     env.JWT_SECRET,
-    { expiresIn: '1h' }, // Token expires in 1 hour
+    { expiresIn: '1h' },
   );
 
   const params = new URLSearchParams();
   params.append('token', token);
-  const url = `${CLIENT_URL}/?${params.toString()}`;
-
-  logger.debug('📤 Generated secure URL:', url);
-  return url;
+  return `${CLIENT_URL}/?${params.toString()}`;
 }
-// API endpoint to fetch trade data by tradeId
+
+/**
+ * Fetch trade data by tradeId.
+ * GET /api/trade/:tradeId
+ */
 app.get('/api/trade/:tradeId', async (req, res) => {
   try {
     const { tradeId } = req.params;
@@ -378,19 +336,7 @@ app.get('/api/trade/:tradeId', async (req, res) => {
       .eq('trade_id', tradeId)
       .single();
 
-    logger.debug('🔍 Trade API request', {
-      tradeId,
-      found: !!tradeData,
-      hasTradeData: !!tradeData,
-      buyerDisplay: tradeData?.buyer_display || 'NULL/UNDEFINED',
-      sellerDisplay: tradeData?.seller_display || 'NULL/UNDEFINED',
-      buyerDisplayType: typeof tradeData?.buyer_display,
-      sellerDisplayType: typeof tradeData?.seller_display,
-      fullTradeData: tradeData,
-    });
-
     if (error || !tradeData) {
-      logger.debug('🔍 Trade API request - not found', { tradeId, error });
       return res.status(404).json({ error: 'Trade not found' });
     }
 
@@ -453,6 +399,9 @@ app.post('/api/wallet/update', async (req, res) => {
   }
 });
 
+/**
+ * Fetch wallet connection for a specific trade and user.
+ */
 export async function getWalletConnection(tradeId, discordUserId) {
   try {
     const { data, error } = await getSupabaseClient()
@@ -474,6 +423,9 @@ export async function getWalletConnection(tradeId, discordUserId) {
   }
 }
 
+/**
+ * Fetch all wallet connections for a trade.
+ */
 export async function getTradeWalletConnections(tradeId) {
   try {
     const { data, error } = await getSupabaseClient()
@@ -493,6 +445,9 @@ export async function getTradeWalletConnections(tradeId) {
   }
 }
 
+/**
+ * Start wallet connection server on configured port.
+ */
 export async function startWalletServer(client) {
   botClient = client;
   return new Promise((resolve) => {
@@ -506,7 +461,6 @@ export async function startWalletServer(client) {
   });
 }
 
-// Start server if this file is run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
   startWalletServer().catch((error) => {
     logger.error('Failed to start wallet server:', error);

@@ -8,14 +8,12 @@ import {
 import { buildVerifyContainer } from '../utils/components/containers.js';
 import { logger } from '../utils/logger.js';
 
-/** Slash command data definition. */
 export const data = new SlashCommandBuilder()
   .setName('verify_setup')
   .setDescription(`Post 'Verify' container`)
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .setContexts([InteractionContextType.Guild]);
 
-/** Execute the verify_setup command. */
 export async function execute(interaction) {
   try {
     await interaction.reply({
