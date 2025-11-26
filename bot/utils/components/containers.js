@@ -17,6 +17,7 @@ import { truncateWalletAddress } from '../walletServer.js';
 import {
   buildConnectWalletButton,
   buildCreateThreadButtonsRow,
+  buildProceedButton,
   buildTradeButton,
   buildVerifyButton,
 } from './buttons.js';
@@ -245,34 +246,61 @@ export async function buildConnectWalletContainer(
   walletStatus = {},
   buyerDisplay = null,
   sellerDisplay = null,
+  confirmationStatus = {},
 ) {
   const buyerConnected = !!walletStatus.buyerWallet;
   const sellerConnected = !!walletStatus.sellerWallet;
+
+  const buyerConfirmed = !!confirmationStatus.buyerConfirmed;
+  const sellerConfirmed = !!confirmationStatus.sellerConfirmed;
 
   // Always show display names if available, otherwise show user ID
   const buyerLabel = buyerDisplay || `User ${buyerId.slice(-4)}`;
   const sellerLabel = sellerDisplay || `User ${sellerId.slice(-4)}`;
 
-  const statusLines = [];
+  const walletStatusLines = [];
   if (buyerConnected) {
-    statusLines.push(
+    walletStatusLines.push(
       `\n✅ **Buyer** (${buyerLabel}): ${truncateWalletAddress(walletStatus.buyerWallet)}`,
     );
   } else {
-    statusLines.push(
+    walletStatusLines.push(
       `\n⏳ **Buyer** (${buyerLabel}): Awaiting wallet connection`,
     );
   }
 
   if (sellerConnected) {
-    statusLines.push(
+    walletStatusLines.push(
       `\n✅ **Seller** (${sellerLabel}): ${truncateWalletAddress(walletStatus.sellerWallet)}`,
     );
   } else {
-    statusLines.push(
+    walletStatusLines.push(
       `\n⏳ **Seller** (${sellerLabel}): Awaiting wallet connection`,
     );
   }
+
+  const confirmationLines = [];
+  const buildConfirmationLine = (role, label, connected, confirmed) => {
+    if (confirmed) {
+      return `\n✅ **${role}** (${label}): Ready — Proceed confirmed.`;
+    }
+    if (!connected) {
+      return `\n⏳ **${role}** (${label}): Connect wallet before confirming.`;
+    }
+    return `\n🕹️ **${role}** (${label}): Wallet connected — waiting on Proceed.`;
+  };
+
+  confirmationLines.push(
+    buildConfirmationLine('Buyer', buyerLabel, buyerConnected, buyerConfirmed),
+  );
+  confirmationLines.push(
+    buildConfirmationLine('Seller', sellerLabel, sellerConnected, sellerConfirmed),
+  );
+
+  const allConfirmed = buyerConfirmed && sellerConfirmed;
+  const proceedReminder = allConfirmed
+    ? 'Both parties have confirmed. Preparing the next step...'
+    : 'Both parties must confirm after connecting their wallets to continue.';
 
   const container = new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
@@ -295,8 +323,17 @@ export async function buildConnectWalletContainer(
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `**Wallet Connection Status:**${statusLines.join('\n')}`,
+        `**Wallet Connection Status:**${walletStatusLines.join('\n')}`,
       ),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `**Proceed Confirmation Status:**${confirmationLines.join('\n')}`,
+      ),
+      new TextDisplayBuilder().setContent(`_${proceedReminder}_`),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
@@ -305,5 +342,40 @@ export async function buildConnectWalletContainer(
       buildConnectWalletButton(tradeId, buyerId, sellerId),
     );
 
+  if (!allConfirmed) {
+    container.addActionRowComponents(
+      buildProceedButton(tradeId, buyerId, sellerId),
+    );
+  }
+
   return container;
+}
+
+/** Build a placeholder container once both confirmations are completed. */
+export function buildDevelopmentInProgressContainer(
+  tradeId,
+  buyerId,
+  sellerId,
+  buyerDisplay = null,
+  sellerDisplay = null,
+) {
+  const buyerLabel = buyerDisplay || `User ${buyerId.slice(-4)}`;
+  const sellerLabel = sellerDisplay || `User ${sellerId.slice(-4)}`;
+
+  return new ContainerBuilder()
+    .setAccentColor(COLORS.BLURPLE)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent('**🚧 Development in progress**'),
+      new TextDisplayBuilder().setContent(
+        'Both parties have connected wallets and confirmed the Proceed step. The next phase of this escrow flow is under active development — we will notify you as soon as it is ready.',
+      ),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `Trade ID: \`${tradeId}\`\n• Buyer: <@${buyerId}> (${buyerLabel})\n• Seller: <@${sellerId}> (${sellerLabel})`,
+      ),
+    );
 }

@@ -79,7 +79,26 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     throw { status: 403, message: 'Unauthorized: User ID mismatch' };
   }
 
-  // 5. Upsert Connection
+  // 5. Prevent same wallet for both buyer and seller
+  const { data: existingConnections } = await getSupabaseClient()
+    .from('wallet_connections')
+    .select('wallet_address')
+    .eq('trade_id', tradeId)
+    .neq('discord_user_id', discordUserId); // other user(s) in this trade
+
+  if (
+    existingConnections?.some(
+      (c) => c.wallet_address?.toLowerCase() === walletAddress.toLowerCase(),
+    )
+  ) {
+    throw {
+      status: 409,
+      message:
+        'This wallet address is already connected to the other party in this trade.',
+    };
+  }
+
+  // 6. Upsert Connection
   const { error: connError } = await getSupabaseClient()
     .from('wallet_connections')
     .upsert(
@@ -100,7 +119,7 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     `Wallet connected: ${tradeId} | ${userType} | ${truncateWalletAddress(walletAddress)}`,
   );
 
-  // 6. Trigger Discord UI Update (Fire and forget / Best effort)
+  // 7. Trigger Discord UI Update (Fire and forget / Best effort)
   updateDiscordTradeMessage(tradeId, tradeData).catch((err) =>
     logger.warn('Failed to update Discord UI:', err.message),
   );
@@ -143,9 +162,8 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
   }
 
   if (botMessage) {
-    const { buildConnectWalletContainer } = await import(
-      './components/containers.js'
-    );
+    const { buildConnectWalletContainer, buildDevelopmentInProgressContainer } =
+      await import('./components/containers.js');
     const { data: connections } = await getSupabaseClient()
       .from('wallet_connections')
       .select('*')
@@ -158,17 +176,39 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
       (c) => c.discord_user_id === tradeData.seller_id,
     );
 
-    const container = await buildConnectWalletContainer(
-      tradeId,
-      tradeData.buyer_id,
-      tradeData.seller_id,
-      {
-        buyerWallet: buyerConn?.wallet_address || null,
-        sellerWallet: sellerConn?.wallet_address || null,
-      },
-      tradeData.buyer_display || registered.buyer_display,
-      tradeData.seller_display || registered.seller_display,
-    );
+    const walletStatus = {
+      buyerWallet: buyerConn?.wallet_address || null,
+      sellerWallet: sellerConn?.wallet_address || null,
+    };
+
+    const confirmationStatus = {
+      buyerConfirmed: !!tradeData.buyer_confirmed,
+      sellerConfirmed: !!tradeData.seller_confirmed,
+    };
+
+    const buyerDisplayName =
+      tradeData.buyer_display || registered.buyer_display;
+    const sellerDisplayName =
+      tradeData.seller_display || registered.seller_display;
+
+    const container =
+      confirmationStatus.buyerConfirmed && confirmationStatus.sellerConfirmed
+        ? buildDevelopmentInProgressContainer(
+            tradeId,
+            tradeData.buyer_id,
+            tradeData.seller_id,
+            buyerDisplayName,
+            sellerDisplayName,
+          )
+        : await buildConnectWalletContainer(
+            tradeId,
+            tradeData.buyer_id,
+            tradeData.seller_id,
+            walletStatus,
+            buyerDisplayName,
+            sellerDisplayName,
+            confirmationStatus,
+          );
 
     await botMessage.edit({ components: [container.toJSON()] });
   }
@@ -195,6 +235,8 @@ export async function registerTradeMessage(
   sellerId = null,
   buyerDisplay = null,
   sellerDisplay = null,
+  buyerConfirmed = undefined,
+  sellerConfirmed = undefined,
 ) {
   logger.debug('🚀 registerTradeMessage CALLED with params:', {
     tradeId,
@@ -232,6 +274,14 @@ export async function registerTradeMessage(
     seller_display: sellerDisplay || null,
   };
 
+  if (buyerConfirmed !== undefined) {
+    tradeData.buyer_confirmed = buyerConfirmed;
+  }
+
+  if (sellerConfirmed !== undefined) {
+    tradeData.seller_confirmed = sellerConfirmed;
+  }
+
   try {
     const { error } = await getSupabaseClient()
       .from('trades')
@@ -262,6 +312,62 @@ export async function registerTradeMessage(
     logger.error('Failed to register trade message:', err);
     return false;
   }
+}
+
+/**
+ * Mark a user's Proceed confirmation and return the updated trade record.
+ * @param {string} tradeId
+ * @param {'buyer'|'seller'} userType
+ */
+export async function confirmTradeProceedStep(tradeId, userType) {
+  if (!tradeId || !userType) {
+    throw new Error('Trade ID and user type are required for confirmation.');
+  }
+
+  const column =
+    userType === 'buyer'
+      ? 'buyer_confirmed'
+      : userType === 'seller'
+        ? 'seller_confirmed'
+        : null;
+
+  if (!column) {
+    throw new Error(`Invalid user type for confirmation: ${userType}`);
+  }
+
+  const { data, error } = await getSupabaseClient()
+    .from('trades')
+    .update({ [column]: true })
+    .eq('trade_id', tradeId)
+    .select('*')
+    .single();
+
+  if (error) {
+    logger.error('Error updating proceed confirmation:', {
+      tradeId,
+      userType,
+      error,
+    });
+    throw new Error('Failed to store proceed confirmation');
+  }
+
+  return data;
+}
+
+/**
+ * Force a Discord message refresh for a trade using the latest database state.
+ * @param {string} tradeId
+ * @param {object|null} tradeDataOverride
+ */
+export async function refreshTradeMessage(tradeId, tradeDataOverride = null) {
+  const tradeData =
+    tradeDataOverride || (await getRegisteredTradeMessage(tradeId));
+  if (!tradeData) {
+    return null;
+  }
+
+  await updateDiscordTradeMessage(tradeId, tradeData);
+  return tradeData;
 }
 
 // Debug endpoint - best-effort; returns registry and connections for inspection.
