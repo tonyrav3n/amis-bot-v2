@@ -55,7 +55,7 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET?.trim() || '',
   DEBUG_MODE: process.env.DEBUG_MODE?.trim().toLowerCase() === 'true',
   CLIENT_URL: process.env.CLIENT_URL?.trim() || 'http://localhost:5173',
-  SERVER_URL: process.env.SERVER_URL?.trim() || '',
+  VITE_SERVER_URL: process.env.VITE_SERVER_URL?.trim() || '',
   WALLET_SERVER_PORT: Number(process.env.WALLET_SERVER_PORT) || 3001,
 };
 

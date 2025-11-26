@@ -499,7 +499,7 @@ export async function startWalletServer(client) {
     const server = app.listen(PORT, () => {
       logger.info(`Wallet connection server running on port ${PORT}`);
       logger.info(
-        `Server URL: ${env.SERVER_URL || `http://localhost:${PORT}`}`,
+        `Server URL: ${env.VITE_SERVER_URL || `http://localhost:${PORT}`}`,
       );
       resolve(server);
     });
