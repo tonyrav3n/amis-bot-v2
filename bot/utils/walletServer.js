@@ -79,7 +79,26 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     throw { status: 403, message: 'Unauthorized: User ID mismatch' };
   }
 
-  // 5. Upsert Connection
+  // 5. Prevent same wallet for both buyer and seller
+  const { data: existingConnections } = await getSupabaseClient()
+    .from('wallet_connections')
+    .select('wallet_address')
+    .eq('trade_id', tradeId)
+    .neq('discord_user_id', discordUserId); // other user(s) in this trade
+
+  if (
+    existingConnections?.some(
+      (c) => c.wallet_address?.toLowerCase() === walletAddress.toLowerCase(),
+    )
+  ) {
+    throw {
+      status: 409,
+      message:
+        'This wallet address is already connected to the other party in this trade.',
+    };
+  }
+
+  // 6. Upsert Connection
   const { error: connError } = await getSupabaseClient()
     .from('wallet_connections')
     .upsert(
@@ -100,7 +119,7 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     `Wallet connected: ${tradeId} | ${userType} | ${truncateWalletAddress(walletAddress)}`,
   );
 
-  // 6. Trigger Discord UI Update (Fire and forget / Best effort)
+  // 7. Trigger Discord UI Update (Fire and forget / Best effort)
   updateDiscordTradeMessage(tradeId, tradeData).catch((err) =>
     logger.warn('Failed to update Discord UI:', err.message),
   );
@@ -143,10 +162,8 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
   }
 
   if (botMessage) {
-    const {
-      buildConnectWalletContainer,
-      buildDevelopmentInProgressContainer,
-    } = await import('./components/containers.js');
+    const { buildConnectWalletContainer, buildDevelopmentInProgressContainer } =
+      await import('./components/containers.js');
     const { data: connections } = await getSupabaseClient()
       .from('wallet_connections')
       .select('*')
@@ -343,7 +360,8 @@ export async function confirmTradeProceedStep(tradeId, userType) {
  * @param {object|null} tradeDataOverride
  */
 export async function refreshTradeMessage(tradeId, tradeDataOverride = null) {
-  const tradeData = tradeDataOverride || (await getRegisteredTradeMessage(tradeId));
+  const tradeData =
+    tradeDataOverride || (await getRegisteredTradeMessage(tradeId));
   if (!tradeData) {
     return null;
   }
@@ -587,7 +605,7 @@ export async function startWalletServer(client) {
     const server = app.listen(PORT, () => {
       logger.info(`Wallet connection server running on port ${PORT}`);
       logger.info(
-        `Server URL: ${env.SERVER_URL || `http://localhost:${PORT}`}`,
+        `Server URL: ${env.VITE_SERVER_URL || `http://localhost:${PORT}`}`,
       );
       resolve(server);
     });
