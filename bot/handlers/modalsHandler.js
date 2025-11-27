@@ -3,6 +3,7 @@ import { MessageFlags } from 'discord.js';
 import { buildConfirmTradeDetailsContainer } from '../utils/components/containers.js';
 import { calculateTradeFees } from '../utils/fees.js';
 import { logger } from '../utils/logger.js';
+import { createTradeDraft } from '../utils/tradeDrafts.js';
 import { normalizeUsdAmount } from '../utils/validation.js';
 
 /** Routes modal submissions to appropriate handlers. */
@@ -116,6 +117,12 @@ async function handleTradeDetailsModal(interaction) {
   • **Buyer pays:** $${feesData.buyerTotal} ($${feesData.price} + 2.5%)
   • **Seller receives:** $${feesData.sellerTotal} ($${feesData.price} - 2.5%)`;
 
+  const tradeDraftId = createTradeDraft({
+    item,
+    price: priceValue,
+    additionalDetails: description,
+  });
+
   await interaction.reply({
     flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2,
     components: [
@@ -126,7 +133,8 @@ async function handleTradeDetailsModal(interaction) {
         priceValue,
         description,
         feesText,
-      ),
+        tradeDraftId,
+      ).toJSON(),
     ],
   });
 }

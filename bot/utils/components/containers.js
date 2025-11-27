@@ -174,6 +174,7 @@ export function buildTradeContainer() {
  * @param {string} price - Formatted price
  * @param {string} details - Additional trade details
  * @param {string} feesText - Text describing applied fees
+ * @param {string|null} tradeDraftId - Temporary identifier holding trade details
  * @returns {ContainerBuilder} Trade confirmation container
  */
 export function buildConfirmTradeDetailsContainer(
@@ -183,6 +184,7 @@ export function buildConfirmTradeDetailsContainer(
   price,
   details,
   feesText,
+  tradeDraftId = null,
 ) {
   const tradeDetailsComponents = [
     new TextDisplayBuilder().setContent(`Buyer: <@${buyerId}>`),
@@ -221,7 +223,7 @@ export function buildConfirmTradeDetailsContainer(
   // If missing, show a disabled placeholder to avoid crashes and make intent clear.
   if (buyerId && sellerId) {
     container.addActionRowComponents(
-      buildCreateThreadButtonsRow(buyerId, sellerId),
+      buildCreateThreadButtonsRow(buyerId, sellerId, tradeDraftId),
     );
   } else {
     container.addActionRowComponents(
@@ -247,6 +249,7 @@ export async function buildConnectWalletContainer(
   buyerDisplay = null,
   sellerDisplay = null,
   confirmationStatus = {},
+  tradeDetails = {},
 ) {
   const buyerConnected = !!walletStatus.buyerWallet;
   const sellerConnected = !!walletStatus.sellerWallet;
@@ -302,9 +305,22 @@ export async function buildConnectWalletContainer(
     ? 'Both parties have confirmed. Preparing the next step...'
     : 'Both parties must confirm after connecting their wallets to continue.';
 
+  const { item, price, details } = tradeDetails;
+
+  const tradeDetailsLines = [
+    `**Item:** ${item || 'Not provided'}`,
+    `**Price:** ${price ? `$${price}` : 'Not provided'}`,
+  ];
+
+  if (details) {
+    tradeDetailsLines.push(`**Details:** ${details}`);
+  }
+
   const container = new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
     .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent('**STATUS: [PENDING]**'),
+      new TextDisplayBuilder().setContent(tradeDetailsLines.join('\n')),
       new TextDisplayBuilder().setContent(
         '**Final Agreement & Consent Required**\n' +
           'Please review the terms one last time and click your respective button below to finalize the agreement. This action cannot be undone.',

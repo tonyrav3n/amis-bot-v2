@@ -26,10 +26,19 @@ export function buildTradeButton() {
 }
 
 /** Build create thread confirmation buttons. */
-export function buildCreateThreadButtonsRow(buyerId, sellerId) {
+export function buildCreateThreadButtonsRow(
+  buyerId,
+  sellerId,
+  tradeDraftId = null,
+) {
+  const customIdParts = ['create_thread', buyerId, sellerId];
+  if (tradeDraftId) {
+    customIdParts.push(tradeDraftId);
+  }
+
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`create_thread:${buyerId}:${sellerId}`)
+      .setCustomId(customIdParts.join(':'))
       .setLabel('Confirm Trade')
       .setEmoji('✅')
       .setStyle(ButtonStyle.Success),
