@@ -191,6 +191,12 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
     const sellerDisplayName =
       tradeData.seller_display || registered.seller_display;
 
+    const tradeDetails = {
+      item: tradeData.item || registered.item,
+      price: tradeData.price || registered.price,
+      details: tradeData.additional_details || registered.additional_details,
+    };
+
     const container =
       confirmationStatus.buyerConfirmed && confirmationStatus.sellerConfirmed
         ? buildDevelopmentInProgressContainer(
@@ -208,6 +214,7 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
             buyerDisplayName,
             sellerDisplayName,
             confirmationStatus,
+            tradeDetails,
           );
 
     await botMessage.edit({ components: [container.toJSON()] });
@@ -224,6 +231,13 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
  * @param {string} messageId
  * @param {string|null} buyerId
  * @param {string|null} sellerId
+ * @param {string|null} buyerDisplay
+ * @param {string|null} sellerDisplay
+ * @param {boolean|undefined} buyerConfirmed
+ * @param {boolean|undefined} sellerConfirmed
+ * @param {string|null} item
+ * @param {string|null} price
+ * @param {string|null} additionalDetails
  * @returns {boolean}
  */
 export async function registerTradeMessage(
@@ -237,6 +251,9 @@ export async function registerTradeMessage(
   sellerDisplay = null,
   buyerConfirmed = undefined,
   sellerConfirmed = undefined,
+  item = null,
+  price = null,
+  additionalDetails = null,
 ) {
   logger.debug('🚀 registerTradeMessage CALLED with params:', {
     tradeId,
@@ -259,6 +276,9 @@ export async function registerTradeMessage(
     sellerDisplayType: typeof sellerDisplay,
     buyerDisplayLength: buyerDisplay?.length || 0,
     sellerDisplayLength: sellerDisplay?.length || 0,
+    item,
+    price,
+    additionalDetails,
   });
 
   if (!tradeId || !guildId || !channelId || !messageId) return false;
@@ -272,6 +292,9 @@ export async function registerTradeMessage(
     seller_id: sellerId || null,
     buyer_display: buyerDisplay || null,
     seller_display: sellerDisplay || null,
+    item: item || null,
+    price: price || null,
+    additional_details: additionalDetails || null,
   };
 
   if (buyerConfirmed !== undefined) {
@@ -304,6 +327,9 @@ export async function registerTradeMessage(
       sellerId: sellerId || null,
       buyerDisplay: buyerDisplay || null,
       sellerDisplay: sellerDisplay || null,
+      item: item || null,
+      price: price || null,
+      additionalDetails: additionalDetails || null,
       timestamp: new Date().toISOString(),
     });
 

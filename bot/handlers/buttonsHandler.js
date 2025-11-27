@@ -15,6 +15,7 @@ import {
 } from '../utils/components/containers.js';
 import { buildTradeDetailsModal } from '../utils/components/modals.js';
 import { logger } from '../utils/logger.js';
+import { consumeTradeDraft } from '../utils/tradeDrafts.js';
 
 const { VERIFIED_ROLE_ID } = env;
 
@@ -38,9 +39,9 @@ export async function handleButton(interaction) {
       return await handleCreateTradeButton(interaction);
 
     case 'create_thread': {
-      // customId format: create_thread:{buyerId}:{sellerId}
-      const [buyerId, sellerId] = rest;
-      return await handleCreateThreadButton(interaction, buyerId, sellerId);
+      // customId format: create_thread:{buyerId}:{sellerId}:{tradeDraftId?}
+      const [buyerId, sellerId, tradeDraftId] = rest;
+      return await handleCreateThreadButton(interaction, buyerId, sellerId, tradeDraftId);
     }
 
     case 'connect_wallet': {
@@ -149,8 +150,9 @@ async function handleCreateTradeButton(interaction) {
  * @param {ButtonInteraction} interaction - The button interaction
  * @param {string} buyerId - Discord user ID of buyer
  * @param {string} sellerId - Discord user ID of seller
+ * @param {string} tradeDraftId - Temporary identifier for trade details
  */
-async function handleCreateThreadButton(interaction, buyerId, sellerId) {
+async function handleCreateThreadButton(interaction, buyerId, sellerId, tradeDraftId = null) {
   if (!buyerId || !sellerId) {
     logger.error('Missing buyerId or sellerId for thread creation', {
       buyerId,
@@ -165,6 +167,22 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
         '❌ Unable to create thread: missing buyer or seller information. Please restart the trade creation flow.',
     });
     return;
+  }
+
+  // Retrieve trade details from draft store
+  let item = '';
+  let price = '';
+  let additionalDetails = '';
+  
+  if (tradeDraftId) {
+    const draft = consumeTradeDraft(tradeDraftId);
+    if (draft) {
+      item = draft.item || '';
+      price = draft.price || '';
+      additionalDetails = draft.additionalDetails || '';
+    } else {
+      logger.warn('Trade draft not found or expired:', tradeDraftId);
+    }
   }
 
   await interaction.deferUpdate();
@@ -252,6 +270,8 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
       sellerDisplay,
     });
 
+    const tradeDetails = { item, price, details: additionalDetails };
+
     const walletContainer = await buildConnectWalletContainer(
       tradeId,
       buyerId,
@@ -260,6 +280,7 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
       buyerDisplay,
       sellerDisplay,
       { buyerConfirmed: false, sellerConfirmed: false },
+      tradeDetails,
     );
     const welcomeMessage = await thread.send({
       flags: MessageFlags.IsComponentsV2,
@@ -284,6 +305,9 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
         sellerId,
         buyerDisplay,
         sellerDisplay,
+        item,
+        price,
+        additionalDetails,
       });
 
       const { registerTradeMessage } = await import('../utils/walletServer.js');
@@ -300,6 +324,9 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId) {
         sellerDisplay,
         false,
         false,
+        item,
+        price,
+        additionalDetails,
       );
 
       console.log('✅ Trade message registration result:', result);
