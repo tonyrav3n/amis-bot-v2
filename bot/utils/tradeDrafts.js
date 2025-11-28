@@ -14,6 +14,12 @@ function cleanupExpiredDrafts() {
 
 setInterval(cleanupExpiredDrafts, TRADE_DRAFT_TTL_MS).unref?.();
 
+/**
+ * Creates a temporary trade draft and returns its identifier.
+ *
+ * @param {object} details - Trade details captured from the modal.
+ * @returns {string} UUID referencing the draft payload.
+ */
 export function createTradeDraft(details) {
   const id = randomUUID();
   tradeDrafts.set(id, {
@@ -23,6 +29,12 @@ export function createTradeDraft(details) {
   return id;
 }
 
+/**
+ * Reads and deletes a stored draft entry.
+ *
+ * @param {string} id - Draft identifier returned by createTradeDraft.
+ * @returns {object|null} The draft payload or null if missing/expired.
+ */
 export function consumeTradeDraft(id) {
   if (!id) return null;
   const draft = tradeDrafts.get(id);

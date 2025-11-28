@@ -222,23 +222,22 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
 }
 
 /**
- * Register a Discord message as the canonical message for a trade.
- * Called by the bot after it posts the welcome/connect-wallet container.
+ * Registers the Discord message that tracks a trade thread.
  *
- * @param {string} tradeId
- * @param {string} guildId
- * @param {string} channelId
- * @param {string} messageId
- * @param {string|null} buyerId
- * @param {string|null} sellerId
- * @param {string|null} buyerDisplay
- * @param {string|null} sellerDisplay
- * @param {boolean|undefined} buyerConfirmed
- * @param {boolean|undefined} sellerConfirmed
- * @param {string|null} item
- * @param {string|null} price
- * @param {string|null} additionalDetails
- * @returns {boolean}
+ * @param {string} tradeId - Unique trade identifier.
+ * @param {string} guildId - Guild containing the trade thread.
+ * @param {string} channelId - Channel or thread ID hosting the message.
+ * @param {string} messageId - Discord message ID to update later.
+ * @param {string|null} buyerId - Buyer Discord ID.
+ * @param {string|null} sellerId - Seller Discord ID.
+ * @param {string|null} buyerDisplay - Buyer display name snapshot.
+ * @param {string|null} sellerDisplay - Seller display name snapshot.
+ * @param {boolean|undefined} buyerConfirmed - Current buyer proceed state.
+ * @param {boolean|undefined} sellerConfirmed - Current seller proceed state.
+ * @param {string|null} item - Trade item.
+ * @param {string|null} price - Trade price.
+ * @param {string|null} additionalDetails - Optional description.
+ * @returns {Promise<boolean>} Resolves true on success.
  */
 export async function registerTradeMessage(
   tradeId,
@@ -255,32 +254,6 @@ export async function registerTradeMessage(
   price = null,
   additionalDetails = null,
 ) {
-  logger.debug('🚀 registerTradeMessage CALLED with params:', {
-    tradeId,
-    guildId,
-    channelId,
-    messageId,
-    buyerId,
-    sellerId,
-    buyerDisplay,
-    sellerDisplay,
-  });
-
-  logger.debug('🔍 registerTradeMessage called with:', {
-    tradeId,
-    buyerId,
-    sellerId,
-    buyerDisplay: buyerDisplay || 'NULL/UNDEFINED',
-    sellerDisplay: sellerDisplay || 'NULL/UNDEFINED',
-    buyerDisplayType: typeof buyerDisplay,
-    sellerDisplayType: typeof sellerDisplay,
-    buyerDisplayLength: buyerDisplay?.length || 0,
-    sellerDisplayLength: sellerDisplay?.length || 0,
-    item,
-    price,
-    additionalDetails,
-  });
-
   if (!tradeId || !guildId || !channelId || !messageId) return false;
 
   const tradeData = {
@@ -341,9 +314,11 @@ export async function registerTradeMessage(
 }
 
 /**
- * Mark a user's Proceed confirmation and return the updated trade record.
- * @param {string} tradeId
- * @param {'buyer'|'seller'} userType
+ * Marks a buyer or seller as having confirmed the Proceed step.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @param {'buyer'|'seller'} userType - Role of the confirmer.
+ * @returns {Promise<object>} Updated trade row from Supabase.
  */
 export async function confirmTradeProceedStep(tradeId, userType) {
   if (!tradeId || !userType) {
@@ -381,9 +356,11 @@ export async function confirmTradeProceedStep(tradeId, userType) {
 }
 
 /**
- * Force a Discord message refresh for a trade using the latest database state.
- * @param {string} tradeId
- * @param {object|null} tradeDataOverride
+ * Forces a Discord message refresh for a given trade.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @param {object|null} [tradeDataOverride=null] - Override trade row if already fetched.
+ * @returns {Promise<object|null>} Resolved trade data or null.
  */
 export async function refreshTradeMessage(tradeId, tradeDataOverride = null) {
   const tradeData =
@@ -451,8 +428,10 @@ app.get('/api/wallet/debug', async (req, res) => {
 });
 
 /**
- * Return registered trade message entry or null.
- * @param {string} tradeId
+ * Retrieves the registered trade entry for a trade ID.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @returns {Promise<object|null>} Trade row or null if missing.
  */
 export async function getRegisteredTradeMessage(tradeId) {
   try {
@@ -475,8 +454,11 @@ export async function getRegisteredTradeMessage(tradeId) {
 }
 
 /**
- * Generate a wallet connect URL for the client app.
- * Uses a secure JWT token to prevent parameter manipulation.
+ * Generates a JWT-secured wallet-connect URL pointing to the frontend client.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @param {'buyer'|'seller'} userType - The role connecting the wallet.
+ * @returns {string} Absolute URL with JWT token in query string.
  */
 export function generateWalletConnectUrl(tradeId, userType) {
   logger.debug('🔗 Generating wallet connect URL:', {
@@ -510,23 +492,14 @@ app.get('/api/trade/:tradeId', async (req, res) => {
       .eq('trade_id', tradeId)
       .single();
 
-    logger.debug('🔍 Trade API request', {
-      tradeId,
-      found: !!tradeData,
-      hasTradeData: !!tradeData,
-      buyerDisplay: tradeData?.buyer_display || 'NULL/UNDEFINED',
-      sellerDisplay: tradeData?.seller_display || 'NULL/UNDEFINED',
-      buyerDisplayType: typeof tradeData?.buyer_display,
-      sellerDisplayType: typeof tradeData?.seller_display,
-      fullTradeData: tradeData,
-    });
+    logger.debug('Trade API request', { tradeId, found: !!tradeData });
 
     if (error || !tradeData) {
-      logger.debug('🔍 Trade API request - not found', { tradeId, error });
+      logger.debug('Trade not found', { tradeId });
       return res.status(404).json({ error: 'Trade not found' });
     }
 
-    const responseData = {
+    res.json({
       tradeId,
       buyerId: tradeData.buyer_id,
       sellerId: tradeData.seller_id,
@@ -534,16 +507,19 @@ app.get('/api/trade/:tradeId', async (req, res) => {
       sellerDisplay: tradeData.seller_display,
       guildId: tradeData.guild_id,
       channelId: tradeData.channel_id,
-    };
-
-    logger.debug('📤 Trade API response', responseData);
-    res.json(responseData);
+    });
   } catch (error) {
     logger.error('Error fetching trade data:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+/**
+ * Shortens an address by keeping the first 6 and last 4 characters.
+ *
+ * @param {string} address - Full wallet address.
+ * @returns {string} Truncated address or the original string if too short.
+ */
 export function truncateWalletAddress(address) {
   if (!address || address.length < 10) {
     return address;
@@ -585,6 +561,13 @@ app.post('/api/wallet/update', async (req, res) => {
   }
 });
 
+/**
+ * Fetches a single wallet connection for a trade/user combination.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @param {string} discordUserId - Discord user ID.
+ * @returns {Promise<object|null>} Wallet connection row or null if missing.
+ */
 export async function getWalletConnection(tradeId, discordUserId) {
   try {
     const { data, error } = await getSupabaseClient()
@@ -606,6 +589,12 @@ export async function getWalletConnection(tradeId, discordUserId) {
   }
 }
 
+/**
+ * Fetches all wallet connections associated with a trade.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @returns {Promise<Array<object>>} Array of wallet connection rows.
+ */
 export async function getTradeWalletConnections(tradeId) {
   try {
     const { data, error } = await getSupabaseClient()
@@ -625,6 +614,12 @@ export async function getTradeWalletConnections(tradeId) {
   }
 }
 
+/**
+ * Boots the Express wallet server and wires it to the Discord client.
+ *
+ * @param {import('discord.js').Client} client - Discord client for later message updates.
+ * @returns {Promise<import('http').Server>} The started HTTP server instance.
+ */
 export async function startWalletServer(client) {
   botClient = client;
   return new Promise((resolve) => {

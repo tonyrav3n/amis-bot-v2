@@ -22,7 +22,11 @@ import {
   buildVerifyButton,
 } from './buttons.js';
 
-/** Build a verification container for new user onboarding. */
+/**
+ * Builds the verification container shown to new users.
+ *
+ * @returns {import('discord.js').ContainerBuilder} The verification container.
+ */
 export function buildVerifyContainer() {
   return new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
@@ -44,14 +48,15 @@ export function buildVerifyContainer() {
 }
 
 /**
- * Build a message container for styled content display.
- * @param {string} msgContent - Main message content
- * @param {Object} options - Styling options
- * @param {string} [options.header] - Optional header text
- * @param {string} [options.colorKey='green'] - Color theme
- * @param {boolean} [options.includeThumb=false] - Include logo thumbnail
- * @param {boolean} [options.includeBanner=false] - Include banner image
- * @returns {ContainerBuilder} Styled container
+ * Builds a styled container for standard channel messages.
+ *
+ * @param {string} msgContent - Main message body.
+ * @param {object} [options={}] - Optional visual overrides.
+ * @param {string} [options.header] - Optional header text.
+ * @param {string} [options.colorKey='green'] - Accent color key.
+ * @param {boolean} [options.includeThumb=false] - Whether to show the logo thumbnail.
+ * @param {boolean} [options.includeBanner=false] - Whether to include the banner image.
+ * @returns {import('discord.js').ContainerBuilder} Configured container builder.
  */
 export function buildSayContainerContainer(msgContent, options = {}) {
   const {
@@ -109,7 +114,15 @@ export function buildSayContainerContainer(msgContent, options = {}) {
   return builder;
 }
 
-/** Build a DM container for styled content display. */
+/**
+ * Builds a DM container for sending styled direct messages.
+ *
+ * @param {string} msgContent - Main message text.
+ * @param {string|null} msgTitle - Optional title line.
+ * @param {string} embedTitle - Server name or top-level label.
+ * @param {string|null} thumbnail - Server icon or thumbnail URL.
+ * @returns {import('discord.js').ContainerBuilder} Configured container builder.
+ */
 export function buildSayDmContainer(
   msgContent,
   msgTitle,
@@ -146,7 +159,11 @@ export function buildSayDmContainer(
   return builder;
 }
 
-/** Build a trade creation container for promoting trade services. */
+/**
+ * Builds the container that advertises the secure trade flow.
+ *
+ * @returns {import('discord.js').ContainerBuilder} Container inviting users to start a trade.
+ */
 export function buildTradeContainer() {
   return new ContainerBuilder()
     .setAccentColor(COLORS.VERIFIED_GREEN)
@@ -167,15 +184,16 @@ export function buildTradeContainer() {
 }
 
 /**
- * Build a trade confirmation container for final review.
- * @param {string} buyerId - Discord user ID of the buyer
- * @param {string} sellerId - Discord user ID of the seller
- * @param {string} item - Description of item/service being traded
- * @param {string} price - Formatted price
- * @param {string} details - Additional trade details
- * @param {string} feesText - Text describing applied fees
- * @param {string|null} tradeDraftId - Temporary identifier holding trade details
- * @returns {ContainerBuilder} Trade confirmation container
+ * Builds the confirmation container displayed after modal submission.
+ *
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @param {string} [item] - Item name.
+ * @param {string} [price] - Formatted price.
+ * @param {string} [details] - Additional terms.
+ * @param {string} [feesText] - Text describing fees.
+ * @param {string|null} [tradeDraftId=null] - Draft ID if available.
+ * @returns {import('discord.js').ContainerBuilder} Confirmation container.
  */
 export function buildConfirmTradeDetailsContainer(
   buyerId,
@@ -240,7 +258,26 @@ export function buildConfirmTradeDetailsContainer(
   return container;
 }
 
-/** Build a wallet connection container. */
+/**
+ * Builds the wallet-connection container shown inside private trade threads.
+ *
+ * @param {string} tradeId - Trade identifier displayed in the UI.
+ * @param {string} buyerId - Discord ID for the buyer.
+ * @param {string} sellerId - Discord ID for the seller.
+ * @param {object} [walletStatus={}] - Current wallet connection state.
+ * @param {string|null} [walletStatus.buyerWallet] - Connected buyer wallet address.
+ * @param {string|null} [walletStatus.sellerWallet] - Connected seller wallet address.
+ * @param {string|null} [buyerDisplay=null] - Buyer display name fallback.
+ * @param {string|null} [sellerDisplay=null] - Seller display name fallback.
+ * @param {object} [confirmationStatus={}] - Proceed confirmation status.
+ * @param {boolean} [confirmationStatus.buyerConfirmed] - Whether the buyer confirmed.
+ * @param {boolean} [confirmationStatus.sellerConfirmed] - Whether the seller confirmed.
+ * @param {object} [tradeDetails={}] - Item, price, and detail metadata.
+ * @param {string} [tradeDetails.item] - Item name.
+ * @param {string} [tradeDetails.price] - Price string.
+ * @param {string} [tradeDetails.details] - Additional details string.
+ * @returns {Promise<import('discord.js').ContainerBuilder>} Promise resolving to the container builder.
+ */
 export async function buildConnectWalletContainer(
   tradeId,
   buyerId,
@@ -257,7 +294,6 @@ export async function buildConnectWalletContainer(
   const buyerConfirmed = !!confirmationStatus.buyerConfirmed;
   const sellerConfirmed = !!confirmationStatus.sellerConfirmed;
 
-  // Always show display names if available, otherwise show user ID
   const buyerLabel = buyerDisplay || `User ${buyerId.slice(-4)}`;
   const sellerLabel = sellerDisplay || `User ${sellerId.slice(-4)}`;
 
@@ -367,7 +403,16 @@ export async function buildConnectWalletContainer(
   return container;
 }
 
-/** Build a placeholder container once both confirmations are completed. */
+/**
+ * Builds a placeholder container once both confirmations succeed.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @param {string|null} [buyerDisplay=null] - Buyer display name fallback.
+ * @param {string|null} [sellerDisplay=null] - Seller display name fallback.
+ * @returns {import('discord.js').ContainerBuilder} Informational container.
+ */
 export function buildDevelopmentInProgressContainer(
   tradeId,
   buyerId,

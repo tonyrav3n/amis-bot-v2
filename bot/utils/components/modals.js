@@ -12,7 +12,11 @@ import {
   buildRoleSelectionSelect,
 } from './selects.js';
 
-/** Build a trade details modal for collecting trade information. */
+/**
+ * Builds the trade details modal containing inputs for item, price, counterparty, role, and notes.
+ *
+ * @returns {import('discord.js').ModalBuilder} The configured modal builder.
+ */
 export function buildTradeDetailsModal() {
   logger.debug('Building trade details modal');
 
