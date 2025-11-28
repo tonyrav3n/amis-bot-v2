@@ -1,25 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
 import cors from 'cors';
 import express from 'express';
 import jwt from 'jsonwebtoken';
 
 import { env } from '../config/env.js';
 
+import { getDatabase } from './database.js';
 import { logger } from './logger.js';
 
 // Module-level variable to hold the bot client instance
 let botClient = null;
 
-// Lazy initialization of Supabase client to avoid top-level errors
-let supabaseClient = null;
-function getSupabaseClient() {
-  if (!supabaseClient) {
-    if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
-      throw new Error('Supabase environment variables not configured');
-    }
-    supabaseClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
+// Lazy initialization of database client to avoid top-level errors
+let dbClient = null;
+function getDbClient() {
+  if (!dbClient) {
+    dbClient = getDatabase();
   }
-  return supabaseClient;
+  return dbClient;
 }
 
 const app = express();
@@ -62,7 +59,7 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
   const { tradeId, userType } = decoded;
 
   // 3. Fetch Trade
-  const { data: tradeData, error: tradeError } = await getSupabaseClient()
+  const { data: tradeData, error: tradeError } = await getDbClient()
     .from('trades')
     .select('*')
     .eq('trade_id', tradeId)
@@ -80,7 +77,7 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
   }
 
   // 5. Prevent same wallet for both buyer and seller
-  const { data: existingConnections } = await getSupabaseClient()
+  const { data: existingConnections } = await getDbClient()
     .from('wallet_connections')
     .select('wallet_address')
     .eq('trade_id', tradeId)
@@ -99,7 +96,7 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
   }
 
   // 6. Upsert Connection
-  const { error: connError } = await getSupabaseClient()
+  const { error: connError } = await getDbClient()
     .from('wallet_connections')
     .upsert(
       {
@@ -164,7 +161,7 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
   if (botMessage) {
     const { buildConnectWalletContainer, buildDevelopmentInProgressContainer } =
       await import('./components/containers.js');
-    const { data: connections } = await getSupabaseClient()
+    const { data: connections } = await getDbClient()
       .from('wallet_connections')
       .select('*')
       .eq('trade_id', tradeId);
@@ -279,7 +276,7 @@ export async function registerTradeMessage(
   }
 
   try {
-    const { error } = await getSupabaseClient()
+    const { error } = await getDbClient()
       .from('trades')
       .upsert(tradeData, { onConflict: 'trade_id' });
 
@@ -336,7 +333,7 @@ export async function confirmTradeProceedStep(tradeId, userType) {
     throw new Error(`Invalid user type for confirmation: ${userType}`);
   }
 
-  const { data, error } = await getSupabaseClient()
+  const { data, error } = await getDbClient()
     .from('trades')
     .update({ [column]: true })
     .eq('trade_id', tradeId)
@@ -384,13 +381,13 @@ app.get('/api/wallet/debug', async (req, res) => {
     const { tradeId } = req.query;
 
     if (tradeId) {
-      const { data: registryEntry, error: regError } = await getSupabaseClient()
+      const { data: registryEntry, error: regError } = await getDbClient()
         .from('trades')
         .select('*')
         .eq('trade_id', tradeId)
         .single();
 
-      const { data: connections, error: connError } = await getSupabaseClient()
+      const { data: connections, error: connError } = await getDbClient()
         .from('wallet_connections')
         .select('*')
         .eq('trade_id', tradeId);
@@ -406,11 +403,11 @@ app.get('/api/wallet/debug', async (req, res) => {
     }
 
     // Return full registries (beware: may be large)
-    const { data: registry, error: regError } = await getSupabaseClient()
+    const { data: registry, error: regError } = await getDbClient()
       .from('trades')
       .select('*');
 
-    const { data: connections, error: connError } = await getSupabaseClient()
+    const { data: connections, error: connError } = await getDbClient()
       .from('wallet_connections')
       .select('*');
 
@@ -435,7 +432,7 @@ app.get('/api/wallet/debug', async (req, res) => {
  */
 export async function getRegisteredTradeMessage(tradeId) {
   try {
-    const { data, error } = await getSupabaseClient()
+    const { data, error } = await getDbClient()
       .from('trades')
       .select('*')
       .eq('trade_id', tradeId)
@@ -486,7 +483,7 @@ app.get('/api/trade/:tradeId', async (req, res) => {
   try {
     const { tradeId } = req.params;
 
-    const { data: tradeData, error } = await getSupabaseClient()
+    const { data: tradeData, error } = await getDbClient()
       .from('trades')
       .select('*')
       .eq('trade_id', tradeId)
@@ -570,7 +567,7 @@ app.post('/api/wallet/update', async (req, res) => {
  */
 export async function getWalletConnection(tradeId, discordUserId) {
   try {
-    const { data, error } = await getSupabaseClient()
+    const { data, error } = await getDbClient()
       .from('wallet_connections')
       .select('*')
       .eq('trade_id', tradeId)
@@ -597,7 +594,7 @@ export async function getWalletConnection(tradeId, discordUserId) {
  */
 export async function getTradeWalletConnections(tradeId) {
   try {
-    const { data, error } = await getSupabaseClient()
+    const { data, error } = await getDbClient()
       .from('wallet_connections')
       .select('*')
       .eq('trade_id', tradeId);
