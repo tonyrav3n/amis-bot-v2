@@ -76,7 +76,8 @@ export function buildConnectWalletButton(tradeId, buyerId, sellerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`connect_wallet:${tradeId}:${buyerId}:${sellerId}`)
-      .setLabel('🔗 Connect Your Wallet')
+      .setLabel('Connect Wallet')
+      .setEmoji('🔗')
       .setStyle(ButtonStyle.Primary),
   );
 }
