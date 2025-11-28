@@ -8,6 +8,8 @@ import { logger } from './utils/logger.js';
 
 /**
  * Registers all slash commands with the Discord API.
+ *
+ * @returns {Promise<void>}
  */
 async function deployCommands() {
   try {
@@ -22,7 +24,6 @@ async function deployCommands() {
       .filter((f) => f.endsWith('.js'));
 
     for (const file of commandFiles) {
-      // Use a dynamic import to load each command module
       const mod = await import(`./commands/${file}`);
       if (mod?.data?.toJSON) {
         commands.push(mod.data.toJSON());

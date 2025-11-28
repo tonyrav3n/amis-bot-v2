@@ -106,6 +106,12 @@ export const data = new SlashCommandBuilder()
       ),
   );
 
+/**
+ * Handles all /say subcommands and routes to the requested delivery method.
+ *
+ * @param {import('discord.js').ChatInputCommandInteraction} interaction - The slash command interaction.
+ * @returns {Promise<void>} Resolves after the interaction reply is sent.
+ */
 export async function execute(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 

@@ -8,7 +8,8 @@ import { logger } from './utils/logger.js';
 import { startWalletServer } from './utils/walletServer.js';
 
 /**
- * Initializes the Discord bot and establishes connection.
+ * Boots the Discord client, registers commands/events, and starts the wallet server.
+ *
  * @returns {Promise<void>}
  */
 async function initializeBot() {

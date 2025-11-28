@@ -2,7 +2,11 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 
 import { logger } from '../logger.js';
 
-/** Build a verification button for new users. */
+/**
+ * Builds the verify button row used in onboarding containers.
+ *
+ * @returns {import('discord.js').ActionRowBuilder} Action row containing the verify button.
+ */
 export function buildVerifyButton() {
   logger.debug('🔘 Building verify button');
   return new ActionRowBuilder().addComponents(
@@ -14,7 +18,11 @@ export function buildVerifyButton() {
   );
 }
 
-/** Build a create trade button for initiating trade creation flows. */
+/**
+ * Builds the button row that starts the trade creation flow.
+ *
+ * @returns {import('discord.js').ActionRowBuilder} Action row containing the trade button.
+ */
 export function buildTradeButton() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -25,7 +33,14 @@ export function buildTradeButton() {
   );
 }
 
-/** Build create thread confirmation buttons. */
+/**
+ * Builds the confirmation/cancel buttons shown before creating a thread.
+ *
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @param {string|null} [tradeDraftId=null] - Optional draft reference.
+ * @returns {import('discord.js').ActionRowBuilder} Action row with confirm and cancel buttons.
+ */
 export function buildCreateThreadButtonsRow(
   buyerId,
   sellerId,
@@ -43,13 +58,20 @@ export function buildCreateThreadButtonsRow(
       .setEmoji('✅')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(`cancel_trade`)
+      .setCustomId('cancel_trade')
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Danger),
   );
 }
 
-/** Build wallet connection button. */
+/**
+ * Builds the wallet connection button for a specific trade thread.
+ *
+ * @param {string} tradeId - Trade identifier encoded in the custom ID.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {import('discord.js').ActionRowBuilder} Action row containing the wallet button.
+ */
 export function buildConnectWalletButton(tradeId, buyerId, sellerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -59,7 +81,14 @@ export function buildConnectWalletButton(tradeId, buyerId, sellerId) {
   );
 }
 
-/** Build proceed confirmation button. */
+/**
+ * Builds the proceed confirmation button used after wallet connections.
+ *
+ * @param {string} tradeId - Trade identifier encoded in the custom ID.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {import('discord.js').ActionRowBuilder} Action row containing the proceed button.
+ */
 export function buildProceedButton(tradeId, buyerId, sellerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()

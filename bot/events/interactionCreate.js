@@ -7,9 +7,11 @@ export const name = 'interactionCreate';
 export const once = false;
 
 /**
- * Routes Discord interactions to appropriate handlers.
- * @param {Client} client - The Discord client instance
- * @param {Interaction} interaction - The interaction that was created
+ * Routes Discord interactions to the appropriate handler.
+ *
+ * @param {import('discord.js').Client} client - The Discord client instance.
+ * @param {import('discord.js').Interaction} interaction - The interaction payload.
+ * @returns {Promise<void>}
  */
 export async function execute(client, interaction) {
   try {

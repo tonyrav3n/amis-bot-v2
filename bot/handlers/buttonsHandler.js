@@ -24,8 +24,10 @@ const MAX_THREAD_NAME_LENGTH = 100;
 const THREAD_PREFIX = '🛒 Trade ';
 
 /**
- * Routes button interactions to appropriate handlers based on customId.
- * @param {ButtonInteraction} interaction - The Discord button interaction
+ * Routes button interactions to appropriate handlers.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The button interaction.
+ * @returns {Promise<void>}
  */
 export async function handleButton(interaction) {
   const args = interaction.customId.split(':');
@@ -39,13 +41,16 @@ export async function handleButton(interaction) {
       return await handleCreateTradeButton(interaction);
 
     case 'create_thread': {
-      // customId format: create_thread:{buyerId}:{sellerId}:{tradeDraftId?}
       const [buyerId, sellerId, tradeDraftId] = rest;
-      return await handleCreateThreadButton(interaction, buyerId, sellerId, tradeDraftId);
+      return await handleCreateThreadButton(
+        interaction,
+        buyerId,
+        sellerId,
+        tradeDraftId,
+      );
     }
 
     case 'connect_wallet': {
-      // customId format: connect_wallet:{tradeId}:{buyerId}:{sellerId}
       const [tradeId, buyerId, sellerId] = rest;
       return await handleConnectWalletButton(
         interaction,
@@ -84,8 +89,10 @@ export async function handleButton(interaction) {
 }
 
 /**
- * Handles verification button click - assigns verified role to user.
- * @param {ButtonInteraction} interaction - The button interaction
+ * Assigns the verified role to the requesting member.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The verify button interaction.
+ * @returns {Promise<void>}
  */
 async function handleVerifyButton(interaction) {
   logger.info('Verify button clicked', { userId: interaction.user.id });
@@ -102,7 +109,6 @@ async function handleVerifyButton(interaction) {
   const verifiedRoleId = VERIFIED_ROLE_ID;
 
   try {
-    // Fetch the verified role from cache or API
     const verifiedRole =
       guild.roles.cache.get(verifiedRoleId) ||
       (await guild.roles.fetch(verifiedRoleId).catch(() => null));
@@ -115,14 +121,12 @@ async function handleVerifyButton(interaction) {
 
     const { member } = interaction;
 
-    // Check if user is already verified
     if (member.roles.cache.has(verifiedRoleId)) {
       return await interaction.editReply({
         content: 'ℹ️ You are already verified!',
       });
     }
 
-    // Assign the verified role
     await member.roles.add(verifiedRole, 'Verify button assignment');
 
     await interaction.editReply({
@@ -137,8 +141,10 @@ async function handleVerifyButton(interaction) {
 }
 
 /**
- * Shows trade details modal for user input.
- * @param {ButtonInteraction} interaction - The button interaction
+ * Opens the trade-details modal so the user can enter terms.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The create trade button interaction.
+ * @returns {Promise<void>}
  */
 async function handleCreateTradeButton(interaction) {
   logger.info('Create trade button clicked', { userId: interaction.user.id });
@@ -146,13 +152,20 @@ async function handleCreateTradeButton(interaction) {
 }
 
 /**
- * Creates a private Discord thread for trade negotiations.
- * @param {ButtonInteraction} interaction - The button interaction
- * @param {string} buyerId - Discord user ID of buyer
- * @param {string} sellerId - Discord user ID of seller
- * @param {string} tradeDraftId - Temporary identifier for trade details
+ * Creates a private thread, invites buyer and seller, and posts the wallet-connect container.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The create thread button interaction.
+ * @param {string} buyerId - Discord user ID of the buyer.
+ * @param {string} sellerId - Discord user ID of the seller.
+ * @param {string|null} [tradeDraftId=null] - Temporary draft ID holding trade details.
+ * @returns {Promise<void>}
  */
-async function handleCreateThreadButton(interaction, buyerId, sellerId, tradeDraftId = null) {
+async function handleCreateThreadButton(
+  interaction,
+  buyerId,
+  sellerId,
+  tradeDraftId = null,
+) {
   if (!buyerId || !sellerId) {
     logger.error('Missing buyerId or sellerId for thread creation', {
       buyerId,
@@ -294,26 +307,10 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId, tradeDra
       sellerDisplay,
     });
 
-    console.log('🎯 ABOUT TO REGISTER TRADE MESSAGE - THIS SHOULD LOG');
     try {
-      console.log('🔄 Attempting to register trade message:', {
-        tradeId,
-        guildId: guild.id,
-        threadId: thread.id,
-        messageId: welcomeMessage.id,
-        buyerId,
-        sellerId,
-        buyerDisplay,
-        sellerDisplay,
-        item,
-        price,
-        additionalDetails,
-      });
-
       const { registerTradeMessage } = await import('../utils/walletServer.js');
-      console.log('📦 Imported registerTradeMessage function');
 
-      const result = await registerTradeMessage(
+      await registerTradeMessage(
         tradeId,
         guild.id,
         thread.id,
@@ -329,19 +326,9 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId, tradeDra
         additionalDetails,
       );
 
-      console.log('✅ Trade message registration result:', result);
-      console.log('🎉 TRADE REGISTRATION COMPLETED SUCCESSFULLY');
       logger.debug('Trade message registered successfully');
     } catch (regErr) {
-      console.error('❌ Failed to register trade message:', {
-        error: regErr?.message || regErr,
-        tradeId,
-        stack: regErr?.stack,
-      });
-      logger.warn(
-        'Could not register trade message for updates',
-        regErr?.message || regErr,
-      );
+      logger.warn('Could not register trade message for updates', regErr);
     }
 
     const successText = new TextDisplayBuilder().setContent(
@@ -374,11 +361,13 @@ async function handleCreateThreadButton(interaction, buyerId, sellerId, tradeDra
 }
 
 /**
- * Handles wallet connection button click.
- * @param {ButtonInteraction} interaction - The button interaction
- * @param {string} tradeId - The trade ID
- * @param {string} buyerId - The buyer ID
- * @param {string} sellerId - The seller ID
+ * Sends the wallet-connect URL to the buyer or seller when they click the button.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The wallet button interaction.
+ * @param {string} tradeId - The trade identifier.
+ * @param {string} buyerId - Discord user ID of the buyer.
+ * @param {string} sellerId - Discord user ID of the seller.
+ * @returns {Promise<void>}
  */
 async function handleConnectWalletButton(
   interaction,
@@ -386,7 +375,7 @@ async function handleConnectWalletButton(
   buyerId,
   sellerId,
 ) {
-  console.log('🔘 WALLET BUTTON CLICKED:', {
+  logger.debug('Wallet button clicked', {
     tradeId,
     buyerId,
     sellerId,
@@ -410,13 +399,6 @@ async function handleConnectWalletButton(
     });
     return;
   }
-
-  console.log('👤 Determined user type:', {
-    userType,
-    userId: interaction.user.id,
-    buyerId,
-    sellerId,
-  });
 
   try {
     const { generateWalletConnectUrl } = await import(
@@ -453,7 +435,13 @@ async function handleConnectWalletButton(
 }
 
 /**
- * Handles dual confirmation proceed button clicks.
+ * Records a buyer or seller confirmation after wallet connection.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The proceed button interaction.
+ * @param {string} tradeId - The trade identifier.
+ * @param {string} buyerId - Discord user ID of the buyer.
+ * @param {string} sellerId - Discord user ID of the seller.
+ * @returns {Promise<void>}
  */
 async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
   const userId = interaction.user.id;

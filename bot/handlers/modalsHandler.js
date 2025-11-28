@@ -6,7 +6,12 @@ import { logger } from '../utils/logger.js';
 import { createTradeDraft } from '../utils/tradeDrafts.js';
 import { normalizeUsdAmount } from '../utils/validation.js';
 
-/** Routes modal submissions to appropriate handlers. */
+/**
+ * Routes modal submissions to their handler based on the custom ID prefix.
+ *
+ * @param {import('discord.js').ModalSubmitInteraction} interaction - The modal interaction.
+ * @returns {Promise<void>}
+ */
 export async function handleModal(interaction) {
   const { customId } = interaction;
   const userId = interaction.user.id;
@@ -44,7 +49,12 @@ export async function handleModal(interaction) {
   }
 }
 
-/** Handle trade details modal submission. */
+/**
+ * Processes the trade details modal, validates inputs, and posts a confirmation container.
+ *
+ * @param {import('discord.js').ModalSubmitInteraction} interaction - The modal interaction.
+ * @returns {Promise<void>}
+ */
 async function handleTradeDetailsModal(interaction) {
   const userId = interaction.user.id;
 
@@ -59,12 +69,12 @@ async function handleTradeDetailsModal(interaction) {
 
   if (!priceValidation.ok) {
     return interaction.reply({
-      content: `'❌ **Invalid Price:** ${priceValidation.error}`,
+      content: `❌ **Invalid Price:** ${priceValidation.error}`,
       flags: MessageFlags.Ephemeral,
     });
   }
 
-  // Check 1: Self-Trade
+  // Prevent self-trades.
   if (counterpartyId === userId) {
     logger.warn(`User ${userId} tried to trade with themselves`);
     return interaction.reply({
@@ -74,7 +84,7 @@ async function handleTradeDetailsModal(interaction) {
     });
   }
 
-  // Check 2: Bot-Trade (Requires Fetching)
+  // Prevent trades with bots.
   try {
     const targetUser = await interaction.client.users.fetch(counterpartyId, {
       force: true,

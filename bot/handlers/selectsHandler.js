@@ -2,10 +2,14 @@ import { MessageFlags } from 'discord.js';
 
 import { logger } from '../utils/logger.js';
 
-/** Routes select menu interactions to appropriate handlers. */
+/**
+ * Routes select menu interactions to their handler based on custom ID.
+ *
+ * @param {import('discord.js').AnySelectMenuInteraction} interaction - The select menu interaction.
+ * @returns {Promise<void>}
+ */
 export async function handleSelect(interaction) {
-  // eslint-disable-next-line no-unused-vars
-  const [action, ...args] = interaction.customId.split(':');
+  const [action] = interaction.customId.split(':');
 
   try {
     switch (action) {
