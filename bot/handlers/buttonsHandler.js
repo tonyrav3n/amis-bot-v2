@@ -22,6 +22,7 @@ const { VERIFIED_ROLE_ID } = env;
 const THREAD_ARCHIVE_DURATION = ThreadAutoArchiveDuration.OneWeek;
 const MAX_THREAD_NAME_LENGTH = 100;
 const THREAD_PREFIX = '🛒 Trade ';
+const CONNECT_EPHEMERAL_CLEANUP_MS = 20_000; // Allow time for users to click the wallet link before cleanup
 
 /**
  * Routes button interactions to appropriate handlers.
@@ -32,6 +33,18 @@ const THREAD_PREFIX = '🛒 Trade ';
 export async function handleButton(interaction) {
   const args = interaction.customId.split(':');
   const [action, ...rest] = args;
+
+  // Defer replies for actions known to be slow.
+  // Ephemeral replies are used for user-specific actions to avoid clutter.
+  if (
+    !interaction.deferred &&
+    !interaction.replied &&
+    ['connect_wallet', 'proceed_trade', 'verify_assign_role_btn'].includes(
+      action,
+    )
+  ) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  }
 
   switch (action) {
     case 'verify_assign_role_btn':
@@ -62,12 +75,7 @@ export async function handleButton(interaction) {
 
     case 'proceed_trade': {
       const [tradeId, buyerId, sellerId] = rest;
-      return await handleProceedButton(
-        interaction,
-        tradeId,
-        buyerId,
-        sellerId,
-      );
+      return await handleProceedButton(interaction, tradeId, buyerId, sellerId);
     }
     case 'cancel_trade':
       logger.info('Cancel trade button clicked', {
@@ -84,7 +92,10 @@ export async function handleButton(interaction) {
         action,
         customId: interaction.customId,
       });
-      await interaction.deferUpdate();
+      // Defer update for unknown buttons to acknowledge the interaction
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferUpdate();
+      }
   }
 }
 
@@ -97,10 +108,7 @@ export async function handleButton(interaction) {
 async function handleVerifyButton(interaction) {
   logger.info('Verify button clicked', { userId: interaction.user.id });
 
-  if (!interaction.deferred && !interaction.replied) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  }
-
+  // Interaction is already deferred by the main handler
   const { guild } = interaction;
   if (!guild) {
     logger.error('No guild in verify handler');
@@ -148,6 +156,7 @@ async function handleVerifyButton(interaction) {
  */
 async function handleCreateTradeButton(interaction) {
   logger.info('Create trade button clicked', { userId: interaction.user.id });
+  // showModal is an immediate response, no deferral needed.
   await interaction.showModal(buildTradeDetailsModal());
 }
 
@@ -166,18 +175,19 @@ async function handleCreateThreadButton(
   sellerId,
   tradeDraftId = null,
 ) {
+  // Acknowledge the button click immediately before processing
+  await interaction.deferUpdate();
+
   if (!buyerId || !sellerId) {
     logger.error('Missing buyerId or sellerId for thread creation', {
       buyerId,
       sellerId,
       userId: interaction.user.id,
     });
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    }
     await interaction.editReply({
       content:
         '❌ Unable to create thread: missing buyer or seller information. Please restart the trade creation flow.',
+      components: [],
     });
     return;
   }
@@ -186,7 +196,7 @@ async function handleCreateThreadButton(
   let item = '';
   let price = '';
   let additionalDetails = '';
-  
+
   if (tradeDraftId) {
     const draft = consumeTradeDraft(tradeDraftId);
     if (draft) {
@@ -198,7 +208,6 @@ async function handleCreateThreadButton(
     }
   }
 
-  await interaction.deferUpdate();
   const loadingText = new TextDisplayBuilder().setContent(
     '⏳ *Creating private thread...*',
   );
@@ -375,6 +384,7 @@ async function handleConnectWalletButton(
   buyerId,
   sellerId,
 ) {
+  // Interaction is deferred ephemerally in the main handler
   logger.debug('Wallet button clicked', {
     tradeId,
     buyerId,
@@ -384,15 +394,11 @@ async function handleConnectWalletButton(
   });
 
   let userType = null;
-
   if (interaction.user.id === buyerId) {
     userType = 'buyer';
   } else if (interaction.user.id === sellerId) {
     userType = 'seller';
   } else {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    }
     await interaction.editReply({
       content:
         '❌ You are not a participant in this trade and cannot connect a wallet.',
@@ -400,38 +406,84 @@ async function handleConnectWalletButton(
     return;
   }
 
+  const roleLabel = userType === 'buyer' ? 'Buyer' : 'Seller';
+
   try {
-    const { generateWalletConnectUrl } = await import(
-      '../utils/walletServer.js'
-    );
+    const { generateWalletConnectUrl, getRegisteredTradeMessage } =
+      await import('../utils/walletServer.js');
+
+    const tradeData = await getRegisteredTradeMessage(tradeId);
+
+    if (!tradeData) {
+      await interaction.editReply({
+        content:
+          '❌ Unable to locate this trade. Please restart the flow or contact support.',
+        components: [],
+      });
+      return;
+    }
+
+    const userAlreadyConfirmed =
+      userType === 'buyer'
+        ? !!tradeData.buyer_confirmed
+        : !!tradeData.seller_confirmed;
+
+    if (userAlreadyConfirmed) {
+      await interaction.editReply({
+        content:
+          '✅ You have already confirmed this trade. Wallet changes are locked to keep the transaction secure.',
+        components: [],
+      });
+      return;
+    }
 
     const walletConnectUrl = generateWalletConnectUrl(tradeId, userType);
 
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    }
     await interaction.editReply({
-      content: `🔗 **${userType.charAt(0).toUpperCase() + userType.slice(1)} Wallet Connection**\n\nClick the button below to connect your wallet for trade \`${tradeId}\`.`,
+      content: `🔗 **${roleLabel} Wallet Connection**\n\nClick the button below to connect your wallet for trade \`${tradeId}\`.`,
       components: [
         new ActionRowBuilder().addComponents(
           new ButtonBuilder()
-            .setLabel(
-              `Connect ${userType.charAt(0).toUpperCase() + userType.slice(1)} Wallet`,
-            )
+            .setLabel(`Connect ${roleLabel} Wallet`)
             .setStyle(ButtonStyle.Link)
             .setURL(walletConnectUrl),
         ),
       ],
     });
+
+    scheduleWalletLinkCleanup(interaction, roleLabel);
   } catch (error) {
     logger.error('Error handling wallet connection:', error);
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    }
     await interaction.editReply({
       content: '❌ Error initiating wallet connection. Please try again.',
+      components: [],
     });
   }
+}
+
+function scheduleWalletLinkCleanup(interaction, roleLabel) {
+  setTimeout(async () => {
+    try {
+      await interaction.deleteReply();
+    } catch (deleteError) {
+      logger.debug('Unable to delete wallet link reply; falling back to edit', {
+        role: roleLabel,
+        error: deleteError?.message || deleteError,
+      });
+
+      try {
+        await interaction.editReply({
+          content: `✅ ${roleLabel} wallet link sent. Click **Connect Wallet** again if you need a fresh link.`,
+          components: [],
+        });
+      } catch (editError) {
+        logger.warn('Failed to edit wallet link reply during cleanup', {
+          role: roleLabel,
+          error: editError?.message || editError,
+        });
+      }
+    }
+  }, CONNECT_EPHEMERAL_CLEANUP_MS);
 }
 
 /**
@@ -444,6 +496,7 @@ async function handleConnectWalletButton(
  * @returns {Promise<void>}
  */
 async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
+  // Interaction is deferred ephemerally in the main handler
   const userId = interaction.user.id;
   let userType = null;
 
@@ -452,9 +505,6 @@ async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
   } else if (userId === sellerId) {
     userType = 'seller';
   } else {
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    }
     await interaction.editReply({
       content: '❌ Only the buyer or seller can confirm this trade.',
     });
@@ -471,9 +521,6 @@ async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
 
     const walletConnection = await getWalletConnection(tradeId, userId);
     if (!walletConnection) {
-      if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      }
       await interaction.editReply({
         content:
           '🔐 Please connect your wallet before confirming. Use the **Connect Your Wallet** button above.',
@@ -483,9 +530,6 @@ async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
 
     const tradeData = await getRegisteredTradeMessage(tradeId);
     if (!tradeData) {
-      if (!interaction.deferred && !interaction.replied) {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      }
       await interaction.editReply({
         content:
           '❌ Unable to find this trade. Please restart the flow or contact support.',
@@ -514,19 +558,9 @@ async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
         : '⚡ Confirmation received. Waiting for the other participant to confirm.';
     }
 
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.reply({
-        content: responseMessage,
-        flags: MessageFlags.Ephemeral,
-      });
-    } else {
-      await interaction.editReply({ content: responseMessage });
-    }
+    await interaction.editReply({ content: responseMessage });
   } catch (error) {
     logger.error('Error handling proceed confirmation:', error);
-    if (!interaction.deferred && !interaction.replied) {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    }
     await interaction.editReply({
       content: '❌ Unable to record your confirmation. Please try again.',
     });

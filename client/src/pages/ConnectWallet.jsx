@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 // 1. Import the necessary hooks from Reown
@@ -55,15 +55,16 @@ function ConnectWallet() {
 
   const prevAddressRef = useRef(null);
 
-  // Fetch trade data from API
-  useEffect(() => {
-    if (!tradeId) {
-      setError('No trade ID provided');
-      setLoading(false);
-      return;
-    }
+  const fetchTradeData = useCallback(
+    async (showLoading = false) => {
+      if (!tradeId) {
+        return null;
+      }
 
-    const fetchTradeData = async () => {
+      if (showLoading) {
+        setLoading(true);
+      }
+
       try {
         const response = await fetch(
           `http://localhost:3001/api/trade/${tradeId}`,
@@ -73,20 +74,57 @@ function ConnectWallet() {
         }
         const data = await response.json();
         setTradeData(data);
+        setError(null);
+        return data;
       } catch (err) {
         console.error('Error fetching trade data:', err);
         setError(err.message);
+        return null;
       } finally {
-        setLoading(false);
+        if (showLoading) {
+          setLoading(false);
+        }
       }
-    };
+    },
+    [tradeId],
+  );
 
-    fetchTradeData();
-  }, [tradeId]);
+  // Fetch trade data from API
+  useEffect(() => {
+    if (!tradeId) {
+      setError('No trade ID provided');
+      setLoading(false);
+      return;
+    }
+
+    fetchTradeData(true);
+  }, [tradeId, fetchTradeData]);
+
+  const partyConfirmed = useMemo(() => {
+    if (!tradeData || !userType) {
+      return false;
+    }
+
+    return userType === 'buyer'
+      ? !!tradeData.buyerConfirmed
+      : !!tradeData.sellerConfirmed;
+  }, [tradeData, userType]);
+
+  useEffect(() => {
+    if (!tradeId || partyConfirmed) {
+      return undefined;
+    }
+
+    const interval = setInterval(() => {
+      fetchTradeData();
+    }, 7000);
+
+    return () => clearInterval(interval);
+  }, [tradeId, partyConfirmed, fetchTradeData]);
 
   // Send wallet connection callback to backend
   useEffect(() => {
-    if (isConnected && address && tradeData && !callbackSent) {
+    if (isConnected && address && tradeData && !callbackSent && !partyConfirmed) {
       const sendCallback = async () => {
         try {
           // Determine which Discord user ID to use based on userType
@@ -147,10 +185,23 @@ function ConnectWallet() {
 
       sendCallback();
     }
-  }, [isConnected, address, tradeData, callbackSent, tradeId, userType]);
+  }, [
+    isConnected,
+    address,
+    tradeData,
+    callbackSent,
+    tradeId,
+    userType,
+    partyConfirmed,
+  ]);
 
   // Reset callbackSent on wallet switch
   useEffect(() => {
+    if (partyConfirmed) {
+      prevAddressRef.current = address;
+      return;
+    }
+
     if (prevAddressRef.current && prevAddressRef.current !== address) {
       console.log('🔄 Wallet switched:', {
         old: prevAddressRef.current,
@@ -159,7 +210,23 @@ function ConnectWallet() {
       setCallbackSent(false); // ✅ Allow re-send
     }
     prevAddressRef.current = address;
-  }, [address]);
+  }, [address, partyConfirmed]);
+
+  const handleOpenWalletModal = useCallback(() => {
+    if (partyConfirmed) {
+      return;
+    }
+
+    open();
+  }, [open, partyConfirmed]);
+
+  const handleManageWallet = useCallback(() => {
+    if (partyConfirmed) {
+      return;
+    }
+
+    open({ view: 'Account' });
+  }, [open, partyConfirmed]);
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-brand-bg">
@@ -203,32 +270,44 @@ function ConnectWallet() {
             </>
           )}
 
-          {/* 4. Use 'isConnected' instead of '!wallet' */}
           {!isConnected ? (
-            <Button
-              /* 5. Call open() to trigger the Reown modal */
-              onClick={() => open()}
-              className="w-full bg-primary hover:bg-primary/90 cursor-pointer"
-            >
-              Connect Wallet
-            </Button>
+            <div className="space-y-2">
+              <Button
+                onClick={handleOpenWalletModal}
+                className="w-full bg-primary hover:bg-primary/90 cursor-pointer"
+                disabled={partyConfirmed}
+              >
+                {partyConfirmed ? 'Wallet confirmed' : 'Connect Wallet'}
+              </Button>
+              {partyConfirmed && (
+                <p className="text-xs text-muted-foreground">
+                  Your wallet has already been confirmed in Discord. Changes are
+                  locked to keep the trade secure.
+                </p>
+              )}
+            </div>
           ) : (
             <div>
               <p className="text-sm font-medium">Connected Wallet:</p>
-              {/* 6. Display the real address */}
               <p className="text-sm break-all">
                 {truncateWalletAddress(address)}
               </p>
 
-              {/* Optional: Add a button to view account/disconnect */}
               <Button
                 variant="outline"
                 size="sm"
                 className="mt-2 w-full"
-                onClick={() => open({ view: 'Account' })}
+                onClick={handleManageWallet}
+                disabled={partyConfirmed}
               >
-                Manage Wallet
+                {partyConfirmed ? 'Wallet locked' : 'Manage Wallet'}
               </Button>
+              {partyConfirmed && (
+                <p className="mt-2 text-xs text-green-600">
+                  ✓ Wallet confirmed. Contact a moderator if you need to make a
+                  change.
+                </p>
+              )}
             </div>
           )}
         </CardContent>
