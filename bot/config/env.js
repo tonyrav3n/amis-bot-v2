@@ -32,6 +32,8 @@ dotenv.config({ quiet: true });
  * @property {string} BOT_ADDRESS - Bot's blockchain wallet address
  * @property {string} ETHERSCAN_API_KEY - API key for Etherscan/block explorer
  * @property {string} AMIS_ESCROW_ADDRESS - Smart contract address for escrow
+ * @property {string} ESCROW_CONTRACT_ADDRESS - Smart contract address for escrow (alias)
+ * @property {string} BOT_PRIVATE_KEY - Bot's private key for blockchain transactions
  * @property {string} DATABASE_URL - Database connection URL
  * @property {string} CONNECTION_STRING - Alternative database connection URL
  * @property {string} DATABASE_SSL - Database SSL configuration
@@ -52,6 +54,8 @@ export const env = {
   BOT_ADDRESS: process.env.BOT_ADDRESS?.trim() || '',
   ETHERSCAN_API_KEY: process.env.ETHERSCAN_API_KEY?.trim() || '',
   AMIS_ESCROW_ADDRESS: process.env.AMIS_ESCROW_ADDRESS?.trim() || '',
+  ESCROW_CONTRACT_ADDRESS: process.env.ESCROW_CONTRACT_ADDRESS?.trim() || process.env.AMIS_ESCROW_ADDRESS?.trim() || '',
+  BOT_PRIVATE_KEY: process.env.BOT_PRIVATE_KEY?.trim() || '',
   DATABASE_URL: process.env.DATABASE_URL?.trim() || '',
   CONNECTION_STRING: process.env.CONNECTION_STRING?.trim() || '',
   DATABASE_SSL: process.env.DATABASE_SSL?.trim() || '',

@@ -12,6 +12,12 @@ import {
 } from 'discord.js';
 
 import { COLORS, ASSETS } from '../../config/theme.js';
+import { 
+  getTradeFromContract, 
+  getUserActions, 
+  getStatusColor,
+  validateBlockchainConfig,
+} from '../blockchain.js';
 import { truncateWalletAddress } from '../walletServer.js';
 
 import {
@@ -20,6 +26,9 @@ import {
   buildConfirmWalletButton,
   buildTradeButton,
   buildVerifyButton,
+  buildFundButton,
+  buildMarkDeliveredButton,
+  buildApproveReleaseButton,
 } from './buttons.js';
 
 /**
@@ -387,7 +396,165 @@ export async function buildConnectWalletContainer(
 }
 
 /**
+ * Builds an on-chain trade status container with role-based actions.
+ *
+ * Displays live trade state from the AmisEscrowManager contract and shows
+ * appropriate action buttons based on user role and trade lifecycle.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @param {object} walletStatus - Current wallet connection state.
+ * @param {string|null} [walletStatus.buyerWallet] - Connected buyer wallet address.
+ * @param {string|null} [walletStatus.sellerWallet] - Connected seller wallet address.
+ * @param {object} tradeDetails - Item, price, and detail metadata.
+ * @param {string} [tradeDetails.item] - Item name.
+ * @param {string} [tradeDetails.price] - Price string.
+ * @param {string} [tradeDetails.details] - Additional details string.
+ * @param {string|null} [viewerRole=null] - Role of the viewer ('buyer', 'seller', or null).
+ * @param {string|null} [viewerWallet=null] - Wallet address of the viewer.
+ * @returns {Promise<import('discord.js').ContainerBuilder>} Promise resolving to the container builder.
+ */
+export async function buildOnchainTradeStatusContainer(
+  tradeId,
+  buyerId,
+  sellerId,
+  walletStatus = {},
+  tradeDetails = {},
+  viewerRole = null,
+  viewerWallet = null,
+) {
+  const { buyerWallet, sellerWallet } = walletStatus;
+  const { item, price, details } = tradeDetails;
+
+  // Validate blockchain configuration
+  if (!validateBlockchainConfig()) {
+    return new ContainerBuilder()
+      .setAccentColor(COLORS.ALERT_RED)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent('**⚠️ Blockchain Configuration Error**'),
+        new TextDisplayBuilder().setContent(
+          'Unable to connect to the escrow contract. Please check server configuration.',
+        ),
+      );
+  }
+
+  // Fetch trade data from contract
+  const trade = await getTradeFromContract(tradeId);
+  if (!trade) {
+    return new ContainerBuilder()
+      .setAccentColor(COLORS.ALERT_RED)
+      .addTextDisplayComponents(
+        new TextDisplayBuilder().setContent('**❌ Trade Not Found**'),
+        new TextDisplayBuilder().setContent(
+          `Unable to find trade \`${tradeId}\` on the blockchain. The trade may not exist yet or there might be a network issue.`,
+        ),
+      );
+  }
+
+  const { status, statusName } = trade;
+  const statusColor = getStatusColor(status);
+
+  // Build buyer and seller sections (without "CONFIRMED" text)
+  const buyerWalletDisplay = buyerWallet
+    ? `\`${truncateWalletAddress(buyerWallet)}\``
+    : '`WALLET NOT CONNECTED`';
+
+  const sellerWalletDisplay = sellerWallet
+    ? `\`${truncateWalletAddress(sellerWallet)}\``
+    : '`WALLET NOT CONNECTED`';
+
+  const buyerSection =
+    `-# 👤 BUYER\n\n` +
+    `<@${buyerId}>\n\n` +
+    `${buyerWalletDisplay}`;
+
+  const sellerSection =
+    `-# 👤 SELLER\n\n` +
+    `<@${sellerId}>\n\n` +
+    `${sellerWalletDisplay}`;
+
+  const footerText = `-# TRADE ID: \`${tradeId}\``;
+
+  const container = new ContainerBuilder()
+    .setAccentColor(statusColor)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`**STATUS: ${statusName}**`),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `-# ITEM\n**${item || 'Not provided'}**`,
+      ),
+      new TextDisplayBuilder().setContent(`-# PRICE\n**${price || '0'}**`),
+      new TextDisplayBuilder().setContent(
+        `-# ADDITIONAL DETAILS\n\`\`\`${details || 'null'}\`\`\``,
+      ),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(buyerSection))
+    .addSeparatorComponents(new SeparatorBuilder())
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(sellerSection),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    );
+
+  container
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText))
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    );
+
+  // Add role-based action buttons if viewer is identified
+  if (viewerRole && viewerWallet) {
+    const userActions = getUserActions(trade, viewerWallet, viewerRole);
+    
+    if (userActions.canAct && userActions.availableActions.length > 0) {
+      const actionRow = new ActionRowBuilder();
+      
+      for (const action of userActions.availableActions) {
+        switch (action) {
+          case 'fund':
+            actionRow.addComponents(
+              buildFundButton(tradeId, buyerId, sellerId).components[0]
+            );
+            break;
+          case 'markDelivered':
+            actionRow.addComponents(
+              buildMarkDeliveredButton(tradeId, buyerId, sellerId).components[0]
+            );
+            break;
+          case 'approveAndRelease':
+            actionRow.addComponents(
+              buildApproveReleaseButton(tradeId, buyerId, sellerId).components[0]
+            );
+            break;
+        }
+      }
+      
+      if (actionRow.components.length > 0) {
+        container.addActionRowComponents(actionRow);
+      }
+    } else if (userActions.error) {
+      // Show error message if there's a role mismatch
+      container.addTextDisplayComponents(
+        new TextDisplayBuilder().setContent(`⚠️ ${userActions.error}`),
+      );
+    }
+  }
+
+  return container;
+}
+
+/**
  * Builds a placeholder container once both confirmations succeed.
+ * (Kept for backward compatibility, but should use buildOnchainTradeStatusContainer)
  *
  * @param {string} tradeId - Trade identifier.
  * @param {string} buyerId - Discord ID of the buyer.

@@ -173,8 +173,10 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
   }
 
   if (botMessage) {
-    const { buildConnectWalletContainer, buildDevelopmentInProgressContainer } =
-      await import('./components/containers.js');
+    const { 
+      buildConnectWalletContainer, 
+      buildOnchainTradeStatusContainer 
+    } = await import('./components/containers.js');
     const { data: connections } = await getDbClient()
       .from('wallet_connections')
       .select('*')
@@ -210,12 +212,14 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
 
     const container =
       confirmationStatus.buyerConfirmed && confirmationStatus.sellerConfirmed
-        ? buildDevelopmentInProgressContainer(
+        ? await buildOnchainTradeStatusContainer(
             tradeId,
             tradeData.buyer_id,
             tradeData.seller_id,
-            buyerDisplayName,
-            sellerDisplayName,
+            walletStatus,
+            tradeDetails,
+            // Note: We don't have viewer info here, so buttons won't show
+            // This will be handled by button interaction handlers
           )
         : await buildConnectWalletContainer(
             tradeId,
@@ -624,6 +628,107 @@ export async function getTradeWalletConnections(tradeId) {
   } catch (err) {
     logger.error('Failed to get trade wallet connections:', err);
     return [];
+  }
+}
+
+/**
+ * Updates the trade container with viewer-specific role information.
+ *
+ * This function should be called when a user interacts with the trade message
+ * to show them their specific action buttons based on their role.
+ *
+ * @param {string} tradeId - Trade identifier.
+ * @param {string} viewerId - Discord ID of the viewer.
+ * @param {string} viewerRole - Role of the viewer ('buyer' or 'seller').
+ * @returns {Promise<boolean>} True if update was successful, false otherwise.
+ */
+export async function updateTradeContainerForViewer(tradeId, viewerId, viewerRole) {
+  try {
+    if (!botClient) {
+      logger.error('Bot client not initialized');
+      return false;
+    }
+
+    // Get trade data
+    const { data: tradeData, error: tradeError } = await getDbClient()
+      .from('trades')
+      .select('*')
+      .eq('trade_id', tradeId)
+      .single();
+
+    if (tradeError || !tradeData) {
+      logger.error('Trade not found:', tradeError);
+      return false;
+    }
+
+    // Get wallet connections
+    const { data: connections } = await getDbClient()
+      .from('wallet_connections')
+      .select('*')
+      .eq('trade_id', tradeId);
+
+    const buyerConn = connections?.find(
+      (c) => c.discord_user_id === tradeData.buyer_id,
+    );
+    const sellerConn = connections?.find(
+      (c) => c.discord_user_id === tradeData.seller_id,
+    );
+
+    const walletStatus = {
+      buyerWallet: buyerConn?.wallet_address || null,
+      sellerWallet: sellerConn?.wallet_address || null,
+    };
+
+    const tradeDetails = {
+      item: tradeData.item,
+      price: tradeData.price,
+      details: tradeData.additional_details,
+    };
+
+    // Get viewer's wallet address
+    const viewerWallet = viewerRole === 'buyer' 
+      ? walletStatus.buyerWallet 
+      : walletStatus.sellerWallet;
+
+    // Build the on-chain container with viewer info
+    const { buildOnchainTradeStatusContainer } = await import('./components/containers.js');
+    const container = await buildOnchainTradeStatusContainer(
+      tradeId,
+      tradeData.buyer_id,
+      tradeData.seller_id,
+      walletStatus,
+      tradeDetails,
+      viewerRole,
+      viewerWallet,
+    );
+
+    // Find and update the message in the trade thread
+    const registered = await getDbClient()
+      .from('registered_trades')
+      .select('*')
+      .eq('trade_id', tradeId)
+      .single();
+
+    if (registered?.thread_id) {
+      const thread = await botClient.channels.fetch(registered.thread_id).catch(() => null);
+      if (thread) {
+        const messages = await thread.messages.fetch({ limit: 10 });
+        const botMessage = messages.find(
+          (m) => m.author.bot && (m.content.includes(tradeId) || m.components.length > 0),
+        );
+
+        if (botMessage) {
+          await botMessage.edit({ components: [container.toJSON()] });
+          logger.info(`Updated trade container for viewer ${viewerId} in trade ${tradeId}`);
+          return true;
+        }
+      }
+    }
+
+    return false;
+  } catch (error) {
+    logger.error('Failed to update trade container for viewer:', error);
+    return false;
   }
 }
 
