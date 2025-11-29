@@ -76,7 +76,21 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     throw { status: 403, message: 'Unauthorized: User ID mismatch' };
   }
 
-  // 5. Prevent same wallet for both buyer and seller
+  // 5. Prevent updates after proceed confirmation
+  const alreadyConfirmed =
+    userType === 'buyer'
+      ? !!tradeData.buyer_confirmed
+      : !!tradeData.seller_confirmed;
+
+  if (alreadyConfirmed) {
+    throw {
+      status: 409,
+      message:
+        'This role has already confirmed for the trade and the wallet can no longer be changed.',
+    };
+  }
+
+  // 6. Prevent same wallet for both buyer and seller
   const { data: existingConnections } = await getDbClient()
     .from('wallet_connections')
     .select('wallet_address')
@@ -95,7 +109,7 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     };
   }
 
-  // 6. Upsert Connection
+  // 7. Upsert Connection
   const { error: connError } = await getDbClient()
     .from('wallet_connections')
     .upsert(
@@ -116,7 +130,7 @@ async function handleWalletConnection(token, discordUserId, walletAddress) {
     `Wallet connected: ${tradeId} | ${userType} | ${truncateWalletAddress(walletAddress)}`,
   );
 
-  // 7. Trigger Discord UI Update (Fire and forget / Best effort)
+  // 8. Trigger Discord UI Update (Fire and forget / Best effort)
   updateDiscordTradeMessage(tradeId, tradeData).catch((err) =>
     logger.warn('Failed to update Discord UI:', err.message),
   );
@@ -504,6 +518,8 @@ app.get('/api/trade/:tradeId', async (req, res) => {
       sellerDisplay: tradeData.seller_display,
       guildId: tradeData.guild_id,
       channelId: tradeData.channel_id,
+      buyerConfirmed: !!tradeData.buyer_confirmed,
+      sellerConfirmed: !!tradeData.seller_confirmed,
     });
   } catch (error) {
     logger.error('Error fetching trade data:', error);
