@@ -17,7 +17,7 @@ import { truncateWalletAddress } from '../walletServer.js';
 import {
   buildConnectWalletButton,
   buildCreateThreadButtonsRow,
-  buildProceedButton,
+  buildConfirmWalletButton,
   buildTradeButton,
   buildVerifyButton,
 } from './buttons.js';
@@ -298,76 +298,90 @@ export async function buildConnectWalletContainer(
 
   const allConfirmed = buyerConfirmed && sellerConfirmed;
 
-  const truncatedTradeId = tradeId.length > 10 ? `${tradeId.slice(0, 4)}...${tradeId.slice(-4)}` : tradeId;
-
   const buyerWalletDisplay = buyerConnected
     ? `\`${truncateWalletAddress(walletStatus.buyerWallet)}\``
-    : '`[No Wallet]`';
-  
+    : '`WALLET NOT CONNECTED`';
+
   const buyerStatusText = buyerConnected
-    ? (buyerConfirmed ? '✅ **READY**' : '🔴 **WAITING**')
-    : '⏳ **CONNECT WALLET**';
+    ? buyerConfirmed
+      ? '`CONFIRMED`'
+      : '`UNCONFIRMED`'
+    : '`CONNECT WALLET`';
 
   const sellerWalletDisplay = sellerConnected
     ? `\`${truncateWalletAddress(walletStatus.sellerWallet)}\``
-    : '`[No Wallet]`';
-  
+    : '`WALLET NOT CONNECTED`';
+
   const sellerStatusText = sellerConnected
-    ? (sellerConfirmed ? '✅ **READY**' : '🔴 **WAITING**')
-    : '⏳ **CONNECT WALLET**';
+    ? sellerConfirmed
+      ? '`CONFIRMED`'
+      : '`UNCONFIRMED`'
+    : '`CONNECT WALLET`';
 
-  const playersSection = 
-    `👤 **Buyer:** <@${buyerId}>\n` +
-    `│  ${buyerWalletDisplay} • ${buyerStatusText}\n\n` +
-    `🏷️ **Seller:** <@${sellerId}>\n` +
-    `│  ${sellerWalletDisplay} • ${sellerStatusText}`;
+  const buyerSection =
+    `-# 👤 BUYER **${buyerStatusText}**\n\n` +
+    `<@${buyerId}>\n\n` +
+    `${buyerWalletDisplay}`;
 
-  const footerText = allConfirmed
-    ? `Trade ID: \`${truncatedTradeId}\` • Both parties have confirmed. Preparing next step...`
-    : `Trade ID: \`${truncatedTradeId}\` • Both parties must confirm to continue.`;
+  const sellerSection =
+    `-# 👤 SELLER **${sellerStatusText}**\n\n` +
+    `<@${sellerId}>\n\n` +
+    `${sellerWalletDisplay}`;
+
+  const footerText = `-# TRADE ID: \`${tradeId}\``;
 
   const container = new ContainerBuilder()
     .setAccentColor(COLORS.PENDING_DARK_GREY)
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent('# STATUS: PENDING'),
+      new TextDisplayBuilder().setContent('**STATUS: PENDING**'),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `**Item:** ${item || 'Not provided'}\n` +
-        `**Price:** \`${price || '0'}\`\n` +
-        `_${details || 'Please review terms below.'}_`
+        `-# ITEM\n**${item || 'Not provided'}**`,
+      ),
+      new TextDisplayBuilder().setContent(`-# PRICE\n**$${price || '0'}**`),
+      new TextDisplayBuilder().setContent(
+        `-# ADDITIONAL DETAILS\n\`\`\`${details || 'null'}\`\`\``,
       ),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     )
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(buyerSection))
+    .addSeparatorComponents(new SeparatorBuilder())
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent('**The Players**'),
-      new TextDisplayBuilder().setContent(playersSection),
+      new TextDisplayBuilder().setContent(sellerSection),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
-    )
-    .addActionRowComponents(
-      buildConnectWalletButton(tradeId, buyerId, sellerId),
     );
-
-  if (!allConfirmed) {
-    container.addActionRowComponents(
-      buildProceedButton(tradeId, buyerId, sellerId),
-    );
-  }
 
   container
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText))
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
-    )
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`_${footerText}_`),
     );
+
+  const connectWalletButton = buildConnectWalletButton(
+    tradeId,
+    buyerId,
+    sellerId,
+  ).components[0];
+  const confirmWalletButton = buildConfirmWalletButton(
+    tradeId,
+    buyerId,
+    sellerId,
+  ).components[0];
+
+  const actionRow = new ActionRowBuilder().addComponents(connectWalletButton);
+  if (!allConfirmed) {
+    actionRow.addComponents(confirmWalletButton);
+  }
+
+  container.addActionRowComponents(actionRow);
 
   return container;
 }
