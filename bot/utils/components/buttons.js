@@ -76,7 +76,8 @@ export function buildConnectWalletButton(tradeId, buyerId, sellerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`connect_wallet:${tradeId}:${buyerId}:${sellerId}`)
-      .setLabel('🔗 Connect Your Wallet')
+      .setLabel('Connect Wallet')
+      .setEmoji('🔗')
       .setStyle(ButtonStyle.Primary),
   );
 }
@@ -89,11 +90,11 @@ export function buildConnectWalletButton(tradeId, buyerId, sellerId) {
  * @param {string} sellerId - Discord ID of the seller.
  * @returns {import('discord.js').ActionRowBuilder} Action row containing the proceed button.
  */
-export function buildProceedButton(tradeId, buyerId, sellerId) {
+export function buildConfirmWalletButton(tradeId, buyerId, sellerId) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(`proceed_trade:${tradeId}:${buyerId}:${sellerId}`)
-      .setLabel('Proceed')
+      .setLabel('Confirm')
       .setEmoji('⚡')
       .setStyle(ButtonStyle.Success),
   );

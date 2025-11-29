@@ -17,7 +17,7 @@ import { truncateWalletAddress } from '../walletServer.js';
 import {
   buildConnectWalletButton,
   buildCreateThreadButtonsRow,
-  buildProceedButton,
+  buildConfirmWalletButton,
   buildTradeButton,
   buildVerifyButton,
 } from './buttons.js';
@@ -283,8 +283,8 @@ export async function buildConnectWalletContainer(
   buyerId,
   sellerId,
   walletStatus = {},
-  buyerDisplay = null,
-  sellerDisplay = null,
+  _buyerDisplay = null,
+  _sellerDisplay = null,
   confirmationStatus = {},
   tradeDetails = {},
 ) {
@@ -294,111 +294,94 @@ export async function buildConnectWalletContainer(
   const buyerConfirmed = !!confirmationStatus.buyerConfirmed;
   const sellerConfirmed = !!confirmationStatus.sellerConfirmed;
 
-  const buyerLabel = buyerDisplay || `User ${buyerId.slice(-4)}`;
-  const sellerLabel = sellerDisplay || `User ${sellerId.slice(-4)}`;
-
-  const walletStatusLines = [];
-  if (buyerConnected) {
-    walletStatusLines.push(
-      `\n✅ **Buyer** (${buyerLabel}): ${truncateWalletAddress(walletStatus.buyerWallet)}`,
-    );
-  } else {
-    walletStatusLines.push(
-      `\n⏳ **Buyer** (${buyerLabel}): Awaiting wallet connection`,
-    );
-  }
-
-  if (sellerConnected) {
-    walletStatusLines.push(
-      `\n✅ **Seller** (${sellerLabel}): ${truncateWalletAddress(walletStatus.sellerWallet)}`,
-    );
-  } else {
-    walletStatusLines.push(
-      `\n⏳ **Seller** (${sellerLabel}): Awaiting wallet connection`,
-    );
-  }
-
-  const confirmationLines = [];
-  const buildConfirmationLine = (role, label, connected, confirmed) => {
-    if (confirmed) {
-      return `\n✅ **${role}** (${label}): Ready — Proceed confirmed.`;
-    }
-    if (!connected) {
-      return `\n⏳ **${role}** (${label}): Connect wallet before confirming.`;
-    }
-    return `\n🕹️ **${role}** (${label}): Wallet connected — waiting on Proceed.`;
-  };
-
-  confirmationLines.push(
-    buildConfirmationLine('Buyer', buyerLabel, buyerConnected, buyerConfirmed),
-  );
-  confirmationLines.push(
-    buildConfirmationLine('Seller', sellerLabel, sellerConnected, sellerConfirmed),
-  );
-
-  const allConfirmed = buyerConfirmed && sellerConfirmed;
-  const proceedReminder = allConfirmed
-    ? 'Both parties have confirmed. Preparing the next step...'
-    : 'Both parties must confirm after connecting their wallets to continue.';
-
   const { item, price, details } = tradeDetails;
 
-  const tradeDetailsLines = [
-    `**Item:** ${item || 'Not provided'}`,
-    `**Price:** ${price ? `$${price}` : 'Not provided'}`,
-  ];
+  const allConfirmed = buyerConfirmed && sellerConfirmed;
 
-  if (details) {
-    tradeDetailsLines.push(`**Details:** ${details}`);
-  }
+  const buyerWalletDisplay = buyerConnected
+    ? `\`${truncateWalletAddress(walletStatus.buyerWallet)}\``
+    : '`WALLET NOT CONNECTED`';
+
+  const buyerStatusText = buyerConnected
+    ? buyerConfirmed
+      ? '`CONFIRMED`'
+      : '`UNCONFIRMED`'
+    : '`CONNECT WALLET`';
+
+  const sellerWalletDisplay = sellerConnected
+    ? `\`${truncateWalletAddress(walletStatus.sellerWallet)}\``
+    : '`WALLET NOT CONNECTED`';
+
+  const sellerStatusText = sellerConnected
+    ? sellerConfirmed
+      ? '`CONFIRMED`'
+      : '`UNCONFIRMED`'
+    : '`CONNECT WALLET`';
+
+  const buyerSection =
+    `-# 👤 BUYER **${buyerStatusText}**\n\n` +
+    `<@${buyerId}>\n\n` +
+    `${buyerWalletDisplay}`;
+
+  const sellerSection =
+    `-# 👤 SELLER **${sellerStatusText}**\n\n` +
+    `<@${sellerId}>\n\n` +
+    `${sellerWalletDisplay}`;
+
+  const footerText = `-# TRADE ID: \`${tradeId}\``;
 
   const container = new ContainerBuilder()
-    .setAccentColor(COLORS.VERIFIED_GREEN)
+    .setAccentColor(COLORS.PENDING_DARK_GREY)
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent('**STATUS: [PENDING]**'),
-      new TextDisplayBuilder().setContent(tradeDetailsLines.join('\n')),
-      new TextDisplayBuilder().setContent(
-        '**Final Agreement & Consent Required**\n' +
-          'Please review the terms one last time and click your respective button below to finalize the agreement. This action cannot be undone.',
-      ),
+      new TextDisplayBuilder().setContent('**STATUS: PENDING**'),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     )
     .addTextDisplayComponents(
       new TextDisplayBuilder().setContent(
-        `Trade ID: \`${tradeId}\`\n\n**Buyer:** <@${buyerId}>\n\n**Seller:** <@${sellerId}>`,
+        `-# ITEM\n**${item || 'Not provided'}**`,
       ),
-    )
-    .addSeparatorComponents(
-      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
-    )
-    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`-# PRICE\n**$${price || '0'}**`),
       new TextDisplayBuilder().setContent(
-        `**Wallet Connection Status:**${walletStatusLines.join('\n')}`,
+        `-# ADDITIONAL DETAILS\n\`\`\`${details || 'null'}\`\`\``,
       ),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     )
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(buyerSection))
+    .addSeparatorComponents(new SeparatorBuilder())
     .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(
-        `**Proceed Confirmation Status:**${confirmationLines.join('\n')}`,
-      ),
-      new TextDisplayBuilder().setContent(`_${proceedReminder}_`),
+      new TextDisplayBuilder().setContent(sellerSection),
     )
     .addSeparatorComponents(
       new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
-    )
-    .addActionRowComponents(
-      buildConnectWalletButton(tradeId, buyerId, sellerId),
     );
 
-  if (!allConfirmed) {
-    container.addActionRowComponents(
-      buildProceedButton(tradeId, buyerId, sellerId),
+  container
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText))
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
     );
+
+  const connectWalletButton = buildConnectWalletButton(
+    tradeId,
+    buyerId,
+    sellerId,
+  ).components[0];
+  const confirmWalletButton = buildConfirmWalletButton(
+    tradeId,
+    buyerId,
+    sellerId,
+  ).components[0];
+
+  const actionRow = new ActionRowBuilder().addComponents(connectWalletButton);
+  if (!allConfirmed) {
+    actionRow.addComponents(confirmWalletButton);
   }
+
+  container.addActionRowComponents(actionRow);
 
   return container;
 }

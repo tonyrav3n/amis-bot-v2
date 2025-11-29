@@ -3,6 +3,7 @@ export const COLORS = Object.freeze({
   ALERT_RED: 0xed4245,
   NEUTRAL_GREY: 0x2f3136,
   BLURPLE: 0x5865f2,
+  PENDING_DARK_GREY: 0x2b2d31,
 });
 
 export const ASSETS = Object.freeze({
