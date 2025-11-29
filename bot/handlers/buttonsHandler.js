@@ -9,6 +9,7 @@ import {
 } from 'discord.js';
 
 import { env } from '../config/env.js';
+import { getTradeFromContract, getUserActions } from '../utils/blockchain.js';
 import {
   buildConfirmTradeDetailsContainer,
   buildConnectWalletContainer,
@@ -16,6 +17,7 @@ import {
 import { buildTradeDetailsModal } from '../utils/components/modals.js';
 import { logger } from '../utils/logger.js';
 import { consumeTradeDraft } from '../utils/tradeDrafts.js';
+import { updateTradeContainerForViewer } from '../utils/walletServer.js';
 
 const { VERIFIED_ROLE_ID } = env;
 
@@ -39,7 +41,7 @@ export async function handleButton(interaction) {
   if (
     !interaction.deferred &&
     !interaction.replied &&
-    ['connect_wallet', 'proceed_trade', 'verify_assign_role_btn'].includes(
+    ['connect_wallet', 'proceed_trade', 'verify_assign_role_btn', 'fund_trade', 'mark_delivered', 'approve_release'].includes(
       action,
     )
   ) {
@@ -77,6 +79,22 @@ export async function handleButton(interaction) {
       const [tradeId, buyerId, sellerId] = rest;
       return await handleProceedButton(interaction, tradeId, buyerId, sellerId);
     }
+
+    case 'fund_trade': {
+      const [tradeId, buyerId, sellerId] = rest;
+      return await handleFundButton(interaction, tradeId, buyerId, sellerId);
+    }
+
+    case 'mark_delivered': {
+      const [tradeId, buyerId, sellerId] = rest;
+      return await handleMarkDeliveredButton(interaction, tradeId, buyerId, sellerId);
+    }
+
+    case 'approve_release': {
+      const [tradeId, buyerId, sellerId] = rest;
+      return await handleApproveReleaseButton(interaction, tradeId, buyerId, sellerId);
+    }
+
     case 'cancel_trade':
       logger.info('Cancel trade button clicked', {
         userId: interaction.user.id,
@@ -563,6 +581,207 @@ async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
     logger.error('Error handling proceed confirmation:', error);
     await interaction.editReply({
       content: '❌ Unable to record your confirmation. Please try again.',
+    });
+  }
+}
+
+/**
+ * Handles the Fund button click for buyers.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The button interaction.
+ * @param {string} tradeId - Trade identifier.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {Promise<void>}
+ */
+async function handleFundButton(interaction, tradeId, buyerId, _sellerId) {
+  const userId = interaction.user.id;
+
+  // Verify the user is the buyer
+  if (userId !== buyerId) {
+    await interaction.editReply({
+      content: '❌ Only the buyer can fund this trade.',
+    });
+    return;
+  }
+
+  try {
+    // Get user's wallet connection
+    const { getWalletConnection } = await import('../utils/walletServer.js');
+    const walletConnection = await getWalletConnection(tradeId, userId);
+    
+    if (!walletConnection) {
+      await interaction.editReply({
+        content: '🔐 Please connect your wallet first. Use the **Connect Wallet** button.',
+      });
+      return;
+    }
+
+    // Get trade data from contract
+    const trade = await getTradeFromContract(tradeId);
+    if (!trade) {
+      await interaction.editReply({
+        content: '❌ Unable to find trade on blockchain. Please try again.',
+      });
+      return;
+    }
+
+    // Verify user role matches wallet address
+    const userActions = getUserActions(trade, walletConnection.wallet_address, 'buyer');
+    if (!userActions.canAct || !userActions.availableActions.includes('fund')) {
+      await interaction.editReply({
+        content: `❌ You cannot fund this trade at this time. Status: ${userActions.statusName}`,
+      });
+      return;
+    }
+
+    // For now, show a placeholder message - the actual blockchain transaction
+    // will be implemented in a follow-up task
+    await interaction.editReply({
+      content: '💰 **Fund Action**\n\nThis will initiate the blockchain transaction to fund the escrow. The transaction interface is being prepared and will be available soon.',
+    });
+
+    // Update the container to show the user their specific actions
+    await updateTradeContainerForViewer(tradeId, userId, 'buyer');
+
+  } catch (error) {
+    logger.error('Error handling fund button:', error);
+    await interaction.editReply({
+      content: '❌ Unable to process fund action. Please try again.',
+    });
+  }
+}
+
+/**
+ * Handles the Mark Delivered button click for sellers.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The button interaction.
+ * @param {string} tradeId - Trade identifier.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {Promise<void>}
+ */
+async function handleMarkDeliveredButton(interaction, tradeId, buyerId, sellerId) {
+  const userId = interaction.user.id;
+
+  // Verify the user is the seller
+  if (userId !== sellerId) {
+    await interaction.editReply({
+      content: '❌ Only the seller can mark this trade as delivered.',
+    });
+    return;
+  }
+
+  try {
+    // Get user's wallet connection
+    const { getWalletConnection } = await import('../utils/walletServer.js');
+    const walletConnection = await getWalletConnection(tradeId, userId);
+    
+    if (!walletConnection) {
+      await interaction.editReply({
+        content: '🔐 Please connect your wallet first. Use the **Connect Wallet** button.',
+      });
+      return;
+    }
+
+    // Get trade data from contract
+    const trade = await getTradeFromContract(tradeId);
+    if (!trade) {
+      await interaction.editReply({
+        content: '❌ Unable to find trade on blockchain. Please try again.',
+      });
+      return;
+    }
+
+    // Verify user role matches wallet address
+    const userActions = getUserActions(trade, walletConnection.wallet_address, 'seller');
+    if (!userActions.canAct || !userActions.availableActions.includes('markDelivered')) {
+      await interaction.editReply({
+        content: `❌ You cannot mark this trade as delivered at this time. Status: ${userActions.statusName}`,
+      });
+      return;
+    }
+
+    // For now, show a placeholder message - the actual blockchain transaction
+    // will be implemented in a follow-up task
+    await interaction.editReply({
+      content: '📦 **Mark Delivered Action**\n\nThis will initiate the blockchain transaction to mark the trade as delivered. The transaction interface is being prepared and will be available soon.',
+    });
+
+    // Update the container to show the user their specific actions
+    await updateTradeContainerForViewer(tradeId, userId, 'seller');
+
+  } catch (error) {
+    logger.error('Error handling mark delivered button:', error);
+    await interaction.editReply({
+      content: '❌ Unable to process mark delivered action. Please try again.',
+    });
+  }
+}
+
+/**
+ * Handles the Approve & Release button click for buyers.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The button interaction.
+ * @param {string} tradeId - Trade identifier.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {Promise<void>}
+ */
+async function handleApproveReleaseButton(interaction, tradeId, buyerId, _sellerId) {
+  const userId = interaction.user.id;
+
+  // Verify the user is the buyer
+  if (userId !== buyerId) {
+    await interaction.editReply({
+      content: '❌ Only the buyer can approve and release funds.',
+    });
+    return;
+  }
+
+  try {
+    // Get user's wallet connection
+    const { getWalletConnection } = await import('../utils/walletServer.js');
+    const walletConnection = await getWalletConnection(tradeId, userId);
+    
+    if (!walletConnection) {
+      await interaction.editReply({
+        content: '🔐 Please connect your wallet first. Use the **Connect Wallet** button.',
+      });
+      return;
+    }
+
+    // Get trade data from contract
+    const trade = await getTradeFromContract(tradeId);
+    if (!trade) {
+      await interaction.editReply({
+        content: '❌ Unable to find trade on blockchain. Please try again.',
+      });
+      return;
+    }
+
+    // Verify user role matches wallet address
+    const userActions = getUserActions(trade, walletConnection.wallet_address, 'buyer');
+    if (!userActions.canAct || !userActions.availableActions.includes('approveAndRelease')) {
+      await interaction.editReply({
+        content: `❌ You cannot approve this trade at this time. Status: ${userActions.statusName}`,
+      });
+      return;
+    }
+
+    // For now, show a placeholder message - the actual blockchain transaction
+    // will be implemented in a follow-up task
+    await interaction.editReply({
+      content: '✅ **Approve & Release Action**\n\nThis will initiate the blockchain transaction to approve delivery and release funds to the seller. The transaction interface is being prepared and will be available soon.',
+    });
+
+    // Update the container to show the user their specific actions
+    await updateTradeContainerForViewer(tradeId, userId, 'buyer');
+
+  } catch (error) {
+    logger.error('Error handling approve release button:', error);
+    await interaction.editReply({
+      content: '❌ Unable to process approve & release action. Please try again.',
     });
   }
 }

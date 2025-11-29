@@ -99,3 +99,57 @@ export function buildConfirmWalletButton(tradeId, buyerId, sellerId) {
       .setStyle(ButtonStyle.Success),
   );
 }
+
+/**
+ * Builds the Fund button for buyers to fund the escrow contract.
+ *
+ * @param {string} tradeId - Trade identifier encoded in the custom ID.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {import('discord.js').ActionRowBuilder} Action row containing the fund button.
+ */
+export function buildFundButton(tradeId, buyerId, sellerId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`fund_trade:${tradeId}:${buyerId}:${sellerId}`)
+      .setLabel('Fund')
+      .setEmoji('💰')
+      .setStyle(ButtonStyle.Success),
+  );
+}
+
+/**
+ * Builds the Mark Delivered button for sellers.
+ *
+ * @param {string} tradeId - Trade identifier encoded in the custom ID.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {import('discord.js').ActionRowBuilder} Action row containing the mark delivered button.
+ */
+export function buildMarkDeliveredButton(tradeId, buyerId, sellerId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`mark_delivered:${tradeId}:${buyerId}:${sellerId}`)
+      .setLabel('Mark Delivered')
+      .setEmoji('📦')
+      .setStyle(ButtonStyle.Success),
+  );
+}
+
+/**
+ * Builds the Approve & Release button for buyers.
+ *
+ * @param {string} tradeId - Trade identifier encoded in the custom ID.
+ * @param {string} buyerId - Discord ID of the buyer.
+ * @param {string} sellerId - Discord ID of the seller.
+ * @returns {import('discord.js').ActionRowBuilder} Action row containing the approve button.
+ */
+export function buildApproveReleaseButton(tradeId, buyerId, sellerId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`approve_release:${tradeId}:${buyerId}:${sellerId}`)
+      .setLabel('Approve & Release')
+      .setEmoji('✅')
+      .setStyle(ButtonStyle.Success),
+  );
+}
