@@ -12,6 +12,7 @@ import {
 } from 'discord.js';
 
 import { COLORS, ASSETS } from '../../config/theme.js';
+import { getTradeData, getStatusText, getActionButtons } from '../escrow.js';
 import { truncateWalletAddress } from '../walletServer.js';
 
 import {
@@ -20,6 +21,9 @@ import {
   buildConfirmWalletButton,
   buildTradeButton,
   buildVerifyButton,
+  buildFundButton,
+  buildMarkDeliveredButton,
+  buildApproveReleaseButton,
 } from './buttons.js';
 
 /**
@@ -382,6 +386,158 @@ export async function buildConnectWalletContainer(
   }
 
   container.addActionRowComponents(actionRow);
+
+  return container;
+}
+
+/**
+ * Builds the on-chain trade status container that displays live trade state and role-specific action buttons.
+ *
+ * @param {string} tradeId - Trade identifier displayed in the UI.
+ * @param {string} buyerId - Discord ID for the buyer.
+ * @param {string} sellerId - Discord ID for the seller.
+ * @param {object} [walletStatus={}] - Current wallet connection state.
+ * @param {string|null} [walletStatus.buyerWallet] - Connected buyer wallet address.
+ * @param {string|null} [walletStatus.sellerWallet] - Connected seller wallet address.
+ * @param {string|null} [buyerDisplay=null] - Buyer display name fallback.
+ * @param {string|null} [sellerDisplay=null] - Seller display name fallback.
+ * @param {object} [tradeDetails={}] - Item, price, and detail metadata.
+ * @param {string} [tradeDetails.item] - Item name.
+ * @param {string} [tradeDetails.price] - Price string.
+ * @param {string} [tradeDetails.details] - Additional details string.
+ * @param {number|null} [onChainTradeId=null] - On-chain trade ID for contract interaction.
+ * @param {string|null} [userWalletAddress=null] - Current user's wallet address for role determination.
+ * @returns {Promise<import('discord.js').ContainerBuilder>} Promise resolving to the container builder.
+ */
+export async function buildOnChainTradeStatusContainer(
+  tradeId,
+  buyerId,
+  sellerId,
+  walletStatus = {},
+  _buyerDisplay = null,
+  _sellerDisplay = null,
+  tradeDetails = {},
+  onChainTradeId = null,
+  userWalletAddress = null,
+) {
+  const buyerConnected = !!walletStatus.buyerWallet;
+  const sellerConnected = !!walletStatus.sellerWallet;
+
+  const { item, price, details } = tradeDetails;
+
+  const buyerWalletDisplay = buyerConnected
+    ? `\`${truncateWalletAddress(walletStatus.buyerWallet)}\``
+    : '`WALLET NOT CONNECTED`';
+
+  const sellerWalletDisplay = sellerConnected
+    ? `\`${truncateWalletAddress(walletStatus.sellerWallet)}\``
+    : '`WALLET NOT CONNECTED`';
+
+  const buyerSection =
+    `-# 👤 BUYER\n\n` +
+    `<@${buyerId}>\n\n` +
+    `${buyerWalletDisplay}`;
+
+  const sellerSection =
+    `-# 👤 SELLER\n\n` +
+    `<@${sellerId}>\n\n` +
+    `${sellerWalletDisplay}`;
+
+  const footerText = `-# TRADE ID: \`${tradeId}\``;
+
+  // Determine on-chain status and actions
+  let statusText = 'PENDING';
+  let statusColor = COLORS.PENDING_DARK_GREY;
+
+  const actionButtons = [];
+
+  if (onChainTradeId !== null) {
+    try {
+      const tradeData = await getTradeData(onChainTradeId);
+      
+      if (tradeData) {
+        statusText = getStatusText(tradeData.status);
+        
+        // Update color based on status
+        switch (tradeData.status) {
+          case 0: // Created
+            statusColor = COLORS.PENDING_DARK_GREY;
+            break;
+          case 1: // Funded
+            statusColor = COLORS.BLURPLE;
+            break;
+          case 2: // Delivered
+            statusColor = 0xf39c12; // Orange
+            break;
+          case 3: // Completed
+            statusColor = COLORS.VERIFIED_GREEN;
+            break;
+          case 4: // Disputed
+            statusColor = COLORS.ALERT_RED;
+            break;
+          default:
+            statusColor = COLORS.PENDING_DARK_GREY;
+        }
+
+        // Determine which buttons to show based on user role and trade status
+        const { showFund, showMarkDelivered, showApproveRelease } = getActionButtons(tradeData, userWalletAddress);
+
+        if (showFund) {
+          actionButtons.push(buildFundButton(tradeId, buyerId, sellerId).components[0]);
+        }
+        if (showMarkDelivered) {
+          actionButtons.push(buildMarkDeliveredButton(tradeId, buyerId, sellerId).components[0]);
+        }
+        if (showApproveRelease) {
+          actionButtons.push(buildApproveReleaseButton(tradeId, buyerId, sellerId).components[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching on-chain trade data:', error);
+      // Keep default status if contract call fails
+    }
+  }
+
+  const container = new ContainerBuilder()
+    .setAccentColor(statusColor)
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(`**STATUS: ${statusText}**`),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `-# ITEM\n**${item || 'Not provided'}**`,
+      ),
+      new TextDisplayBuilder().setContent(`-# PRICE\n**${price || '0'}**`),
+      new TextDisplayBuilder().setContent(
+        `-# ADDITIONAL DETAILS\n\`\`\`${details || 'null'}\`\`\``,
+      ),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    )
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(buyerSection))
+    .addSeparatorComponents(new SeparatorBuilder())
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(sellerSection),
+    )
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    );
+
+  container
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(footerText))
+    .addSeparatorComponents(
+      new SeparatorBuilder({ spacing: SeparatorSpacingSize.Large }),
+    );
+
+  // Add action buttons if any
+  if (actionButtons.length > 0) {
+    const actionRow = new ActionRowBuilder().addComponents(actionButtons);
+    container.addActionRowComponents(actionRow);
+  }
 
   return container;
 }

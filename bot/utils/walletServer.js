@@ -173,8 +173,10 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
   }
 
   if (botMessage) {
-    const { buildConnectWalletContainer, buildDevelopmentInProgressContainer } =
-      await import('./components/containers.js');
+    const { 
+      buildConnectWalletContainer,
+      buildOnChainTradeStatusContainer 
+    } = await import('./components/containers.js');
     const { data: connections } = await getDbClient()
       .from('wallet_connections')
       .select('*')
@@ -210,12 +212,16 @@ async function updateDiscordTradeMessage(tradeId, tradeData) {
 
     const container =
       confirmationStatus.buyerConfirmed && confirmationStatus.sellerConfirmed
-        ? buildDevelopmentInProgressContainer(
+        ? await buildOnChainTradeStatusContainer(
             tradeId,
             tradeData.buyer_id,
             tradeData.seller_id,
+            walletStatus,
             buyerDisplayName,
             sellerDisplayName,
+            tradeDetails,
+            tradeData.on_chain_trade_id || null,
+            null, // userWalletAddress - will be determined per interaction
           )
         : await buildConnectWalletContainer(
             tradeId,
