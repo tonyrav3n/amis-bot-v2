@@ -40,6 +40,11 @@ dotenv.config({ quiet: true });
  * @property {string} SUPABASE_ANON_KEY - Supabase anonymous key
  * @property {string} JWT_SECRET - Secret key for JWT token signing
  * @property {boolean} DEBUG_MODE - Enable/disable debug logging (from DEBUG_MODE env var)
+ * @property {string} CLIENT_URL - Frontend client URL for wallet connections
+ * @property {string} VITE_SERVER_URL - Server URL for frontend
+ * @property {number} WALLET_SERVER_PORT - Port for wallet server
+ * @property {string} ESCROW_CONTRACT_ADDRESS - Smart contract address for escrow
+ * @property {string} BOT_PRIVATE_KEY - Private key for blockchain transactions
  */
 export const env = {
   TOKEN: process.env.TOKEN?.trim() || '',
@@ -65,6 +70,8 @@ export const env = {
   CLIENT_URL: process.env.CLIENT_URL?.trim() || 'http://localhost:5173',
   VITE_SERVER_URL: process.env.VITE_SERVER_URL?.trim() || '',
   WALLET_SERVER_PORT: Number(process.env.WALLET_SERVER_PORT) || 3001,
+  ESCROW_CONTRACT_ADDRESS: process.env.ESCROW_CONTRACT_ADDRESS?.trim() || '',
+  BOT_PRIVATE_KEY: process.env.BOT_PRIVATE_KEY?.trim() || '',
 };
 
 /**

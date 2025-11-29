@@ -77,6 +77,21 @@ export async function handleButton(interaction) {
       const [tradeId, buyerId, sellerId] = rest;
       return await handleProceedButton(interaction, tradeId, buyerId, sellerId);
     }
+
+    case 'fund_trade': {
+      const [tradeId, buyerId, sellerId] = rest;
+      return await handleFundButton(interaction, tradeId, buyerId, sellerId);
+    }
+
+    case 'mark_delivered': {
+      const [tradeId, buyerId, sellerId] = rest;
+      return await handleMarkDeliveredButton(interaction, tradeId, buyerId, sellerId);
+    }
+
+    case 'approve_release': {
+      const [tradeId, buyerId, sellerId] = rest;
+      return await handleApproveReleaseButton(interaction, tradeId, buyerId, sellerId);
+    }
     case 'cancel_trade':
       logger.info('Cancel trade button clicked', {
         userId: interaction.user.id,
@@ -563,6 +578,129 @@ async function handleProceedButton(interaction, tradeId, buyerId, sellerId) {
     logger.error('Error handling proceed confirmation:', error);
     await interaction.editReply({
       content: '❌ Unable to record your confirmation. Please try again.',
+    });
+  }
+}
+
+/**
+ * Handles the Fund button click for buyers to fund the escrow contract.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The fund button interaction.
+ * @param {string} tradeId - The trade identifier.
+ * @param {string} buyerId - Discord user ID of the buyer.
+ * @param {string} sellerId - Discord user ID of the seller.
+ * @returns {Promise<void>}
+ */
+async function handleFundButton(interaction, tradeId, buyerId, _sellerId) {
+  const userId = interaction.user.id;
+  
+  // Verify the user is the buyer
+  if (userId !== buyerId) {
+    await interaction.reply({
+      content: '❌ Only the buyer can fund the trade.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    // TODO: Implement contract interaction to fund the trade
+    // This will involve:
+    // 1. Getting the user's wallet address
+    // 2. Calling the fundTrade function on the contract
+    // 3. Updating the on-chain trade ID in the database
+    
+    await interaction.editReply({
+      content: '🚧 **Fund Trade Feature**\n\nThis feature is under development. The escrow funding functionality will be available soon.',
+    });
+  } catch (error) {
+    logger.error('Error handling fund button:', error);
+    await interaction.editReply({
+      content: '❌ Error processing fund request. Please try again.',
+    });
+  }
+}
+
+/**
+ * Handles the Mark Delivered button click for sellers to mark delivery.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The mark delivered button interaction.
+ * @param {string} tradeId - The trade identifier.
+ * @param {string} buyerId - Discord user ID of the buyer.
+ * @param {string} sellerId - Discord user ID of the seller.
+ * @returns {Promise<void>}
+ */
+async function handleMarkDeliveredButton(interaction, tradeId, buyerId, sellerId) {
+  const userId = interaction.user.id;
+  
+  // Verify the user is the seller
+  if (userId !== sellerId) {
+    await interaction.reply({
+      content: '❌ Only the seller can mark the trade as delivered.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    // TODO: Implement contract interaction to mark delivery
+    // This will involve:
+    // 1. Getting the user's wallet address
+    // 2. Calling the markDelivered function on the contract
+    // 3. Updating the trade status
+    
+    await interaction.editReply({
+      content: '🚧 **Mark Delivered Feature**\n\nThis feature is under development. The delivery marking functionality will be available soon.',
+    });
+  } catch (error) {
+    logger.error('Error handling mark delivered button:', error);
+    await interaction.editReply({
+      content: '❌ Error processing delivery request. Please try again.',
+    });
+  }
+}
+
+/**
+ * Handles the Approve & Release button click for buyers to release funds.
+ *
+ * @param {import('discord.js').ButtonInteraction} interaction - The approve release button interaction.
+ * @param {string} tradeId - The trade identifier.
+ * @param {string} buyerId - Discord user ID of the buyer.
+ * @param {string} sellerId - Discord user ID of the seller.
+ * @returns {Promise<void>}
+ */
+async function handleApproveReleaseButton(interaction, tradeId, buyerId, _sellerId) {
+  const userId = interaction.user.id;
+  
+  // Verify the user is the buyer
+  if (userId !== buyerId) {
+    await interaction.reply({
+      content: '❌ Only the buyer can approve and release funds.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  try {
+    // TODO: Implement contract interaction to approve and release
+    // This will involve:
+    // 1. Getting the user's wallet address
+    // 2. Calling the approveDelivery function on the contract
+    // 3. Updating the trade status
+    
+    await interaction.editReply({
+      content: '🚧 **Approve & Release Feature**\n\nThis feature is under development. The fund release functionality will be available soon.',
+    });
+  } catch (error) {
+    logger.error('Error handling approve release button:', error);
+    await interaction.editReply({
+      content: '❌ Error processing approval request. Please try again.',
     });
   }
 }
